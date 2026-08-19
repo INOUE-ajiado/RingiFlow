@@ -1,0 +1,49 @@
+# ==== 認証情報 (絶対にコミットしない) ====
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+.env
+.env.*
+!.env.example
+.firebaserc
+secrets/
+
+# ==== Go (backend-go/) ====
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+backend-go/bin/
+backend-go/tmp/
+
+# ==== Node / Angular (frontend-angular/) ====
+node_modules/
+dist/
+tmp/
+out-tsc/
+.angular/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ==== Firebase ====
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+
+# ==== IDE / OS ====
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==== Claude Code ====
+.claude/settings.local.json

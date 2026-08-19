@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RingiFlow 統合基本設計書</title>
+
+    <!-- Google Fonts の読み込み -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Fira+Code:wght@400;500&display=swap"
+        rel="stylesheet">
+
+    <style>
+        /* ==========================================================================
+           Base Styles
+           ========================================================================== */
+        :root {
+            --primary: #2563eb;
+            --primary-light: #3b82f6;
+            --primary-gradient: linear-gradient(135deg, #1e40af, #3b82f6);
+            --text-main: #334155;
+            --text-muted: #64748b;
+            --text-heading: #0f172a;
+            --bg-page: #f1f5f9;
+            --bg-doc: #ffffff;
+            --border-color: #e2e8f0;
+            --danger: #ef4444;
+            --danger-bg: #fef2f2;
+            --code-bg: #1e293b;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            color: var(--text-main);
+            background-color: var(--bg-page);
+            line-height: 1.7;
+            font-size: 10.5pt;
+            margin: 0;
+            padding: 2rem;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ドキュメントコンテナ（画面閲覧用） */
+        .document {
+            max-width: 210mm;
+            /* A4幅 */
+            margin: 0 auto;
+            background-color: var(--bg-doc);
+            padding: 25mm 20mm;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.08), 0 10px 15px -3px rgba(0, 0, 0, 0.03);
+        }
+
+        /* 印刷時の設定 */
+        @page {
+            size: A4;
+            margin: 20mm 15mm;
+
+            @bottom-right {
+                content: counter(page);
+                font-size: 9pt;
+                font-family: 'Inter', sans-serif;
+                color: var(--text-muted);
+            }
+        }
+
+        @media print {
+            body {
+                background-color: transparent;
+                padding: 0;
+            }
+
+            .document {
+                box-shadow: none;
+                border-radius: 0;
+                padding: 0;
+                margin: 0;
+                max-width: none;
+            }
+        }
+
+        /* ==========================================================================
+           Typography & Headings
+           ========================================================================== */
+        p,
+        ul,
+        ol {
+            margin-top: 0;
+            margin-bottom: 1.2rem;
+            text-align: justify;
+        }
+
+        .header-container {
+            margin-bottom: 3.5rem;
+            position: relative;
+            padding-bottom: 1.5rem;
+        }
+
+        .header-container::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), #38bdf8, var(--border-color));
+            border-radius: 2px;
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            color: var(--text-heading);
+            margin: 0 0 0.5rem 0;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            margin: 0;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+        }
+
+        h2 {
+            position: relative;
+            font-size: 1.4rem;
+            color: var(--text-heading);
+            margin-top: 3.5rem;
+            margin-bottom: 1.5rem;
+            padding-left: 1.2rem;
+            page-break-after: avoid;
+        }
+
+        h2::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 6px;
+            background: var(--primary-gradient);
+            border-radius: 4px;
+        }
+
+        h3 {
+            font-size: 1.15rem;
+            color: var(--text-heading);
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            display: inline-block;
+            border-bottom: 2px dashed var(--border-color);
+            padding-bottom: 0.2rem;
+            page-break-after: avoid;
+        }
+
+        sup {
+            font-size: 65%;
+            vertical-align: super;
+            line-height: 0;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        strong {
+            color: var(--text-heading);
+            font-weight: 700;
+        }
+
+        code {
+            font-family: 'Fira Code', monospace;
+            background-color: var(--bg-page);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #b91c1c;
+        }
+
+        /* ==========================================================================
+           Components
+           ========================================================================== */
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 1rem;
+            margin-bottom: 2rem;
+            page-break-inside: avoid;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--text-heading);
+            color: #ffffff;
+            font-weight: 600;
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 0.9rem;
+            letter-spacing: 0.05em;
+        }
+
+        td {
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            vertical-align: top;
+            border-bottom: 1px solid var(--border-color);
+            background-color: var(--bg-doc);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:nth-child(even) td {
+            background-color: #f8fafc;
+        }
+
+        /* macOS風 Code Block */
+        pre {
+            background-color: var(--code-bg);
+            color: #f8fafc;
+            padding: 1.5rem;
+            padding-top: 3rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-family: 'Fira Code', monospace;
+            overflow-x: auto;
+            margin-top: 1rem;
+            margin-bottom: 2rem;
+            page-break-inside: avoid;
+            white-space: pre-wrap;
+            position: relative;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        pre::before {
+            content: '';
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ef4444;
+            /* Mac Red */
+            box-shadow: 20px 0 0 #f59e0b, 40px 0 0 #10b981;
+            /* Mac Yellow, Green */
+        }
+
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: inherit;
+        }
+
+        /* Important Box */
+        .important-box {
+            background: linear-gradient(to right, var(--danger-bg), #ffffff);
+            border-left: 4px solid var(--danger);
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+            margin-bottom: 2rem;
+            page-break-inside: avoid;
+            border-radius: 0 8px 8px 0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .important-box h4 {
+            margin: 0 0 0.8rem 0;
+            color: #991b1b;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .important-box h4::before {
+            content: '';
+            display: inline-block;
+            width: 1.4rem;
+            height: 1.4rem;
+            margin-right: 0.5rem;
+            /* 警告アイコン SVG */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ef4444'%3E%3Cpath fill-rule='evenodd' d='M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z' clip-rule='evenodd' /%3E%3C/svg%3E");
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+
+        .important-box ul {
+            margin-bottom: 0;
+        }
+
+        /* タイムライン風 Step List */
+        .step-list {
+            position: relative;
+            margin-bottom: 2rem;
+            margin-left: 0.5rem;
+        }
+
+        .step-list::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            bottom: 20px;
+            left: 0;
+            width: 2px;
+            background-color: var(--border-color);
+        }
+
+        .step-item {
+            position: relative;
+            padding-left: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .step-item::before {
+            content: '';
+            position: absolute;
+            left: -5px;
+            /* (12px width - 2px line width) / 2 = 5px */
+            top: 6px;
+            width: 12px;
+            height: 12px;
+            background-color: var(--bg-doc);
+            border: 3px solid var(--primary);
+            border-radius: 50%;
+            z-index: 1;
+            box-shadow: 0 0 0 4px var(--bg-doc);
+            /* 線の透過を防ぐ */
+        }
+
+        .step-title {
+            font-weight: 700;
+            color: var(--primary);
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="document">
+        <div class="header-container">
+            <h1>RingiFlow 統合基本設計書</h1>
+            <div class="subtitle">システムアーキテクチャ・モジュール・API仕様定義</div>
+        </div>
+
+        <h2>1. システム概要</h2>
+        <p>本システムは、申請者の社員IDを起点に「システム担当 → プロデューサー →
+            代表」の順に直線的なルートで進む稟議書承認フローシステムである。フロントエンドにAngular、バックエンドAPIにGo、データストアにCloud Firestore、認証にFirebase
+            Authenticationを採用する。各承認段階でのステータス更新は、データの不整合を防ぐためGoバックエンドでのトランザクション処理にて厳密に行う。</p>
+
+        <div class="important-box">
+            <h4>【重要】トランザクション処理と状態管理の徹底</h4>
+            <ul>
+                <li><strong>整合性の担保：</strong>
+                    承認ステータスの更新は、必ずGoバックエンド経由でFirestoreのトランザクションを用いて行い、複数人の同時操作やネットワーク遅延による競合（データ不整合）を防止する。</li>
+                <li><strong>アジャイル開発方針（通知機能）：</strong>
+                    現フェーズでは「メール等の通知機能」は要件外とし、コアとなる承認トランザクション・UI実装を優先する。通知連携は次以降のイテレーションにて検討・実装を行う。</li>
+            </ul>
+        </div>
+
+        <h2>2. システム構成・インフラアーキテクチャ</h2>
+        <p>可用性と開発スピードを重視し、Firebaseを中心としたサーバーレス構成を採用する。</p>
+        <ul>
+            <li><strong>フロントエンド（Angular / Firebase Hosting）</strong><br>役割：ユーザーインターフェース（UI）の提供、Firebase
+                Authを用いたログイン処理、およびバックエンドAPIへのリクエスト（申請・承認・一覧取得）。</li>
+            <li><strong>バックエンドAPI（Go / Cloud
+                    Run）</strong><br>役割：認証トークン（JWT）の検証、権限チェック、およびFirestoreに対するトランザクション処理（ステータスの厳密な更新）。</li>
+            <li><strong>データストレージ（Cloud Firestore）</strong><br>役割：稟議書のデータ、ユーザー情報、および承認履歴（監査ログ）の保存。</li>
+            <li><strong>認証（Firebase Authentication）</strong><br>役割：ユーザーの認証（ログイン・ログアウト）およびセッショントークン管理。</li>
+        </ul>
+
+        <h2>3. 業務フローと状態遷移</h2>
+
+        <h3>3.1 申請・承認フロー（正常系）</h3>
+        <div class="step-list">
+            <div class="step-item"><span class="step-title">Step 1. ログイン:</span> ユーザーはAngular画面から社員IDとパスワードを用いてFirebase
+                Authでログインする。</div>
+            <div class="step-item"><span class="step-title">Step 2. 新規申請:</span>
+                申請者は稟議内容（タイトル、内容、金額等）を入力し、AngularからGoのバックエンドAPIへ申請リクエストを送信する。</div>
+            <div class="step-item"><span class="step-title">Step 3. 申請処理（Go）:</span> Go
+                APIはリクエストとJWTを検証し、Firestoreへ新規稟議ドキュメントを作成。ステータスを「システム担当承認待ち（pending_system）」に設定する。</div>
+            <div class="step-item"><span class="step-title">Step 4. システム担当承認:</span> システム担当者がログインし、対象の稟議を「承認」する。Go
+                APIがトランザクション処理によりステータスを「プロデューサー承認待ち（pending_producer）」へ更新する。</div>
+            <div class="step-item"><span class="step-title">Step 5. プロデューサー承認:</span>
+                プロデューサーが「承認」する。同様にGoのトランザクション処理でステータスを「代表承認待ち（pending_ceo）」へ更新する。</div>
+            <div class="step-item"><span class="step-title">Step 6. 最終決裁（代表）:</span> 代表が「承認」する。Go
+                APIがステータスを「決裁完了（approved）」に更新し、フローが完了する。</div>
+        </div>
+
+        <h3>3.2 却下・差し戻しフロー（異常系）</h3>
+        <div class="step-list">
+            <div class="step-item"><span class="step-title">Step 1. 却下/差し戻し操作:</span>
+                任意の承認者（例：プロデューサー）が稟議内容に不備を見つけ、画面上から「却下」または「差し戻し」を実行する。</div>
+            <div class="step-item"><span class="step-title">Step 2. 状態更新（Go）:</span> Go
+                APIはトランザクションを用いて、ステータスを「却下（rejected）」または「申請者へ差し戻し（returned）」に変更する。同時に監査ログ（コメント付き）を記録し処理を完了する。</div>
+        </div>
+
+        <h3>3.3 状態遷移（ステートマシン）定義</h3>
+        <p>システムの各状態（ステータス）と、実行可能なアクションの定義。</p>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 20%;">現在ステータス</th>
+                    <th style="width: 25%;">操作可能権限 (Role)</th>
+                    <th style="width: 25%;">アクション</th>
+                    <th style="width: 30%;">次ステータス</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>(新規作成)</td>
+                    <td>申請者 (<code>applicant</code>)</td>
+                    <td>申請 (Create)</td>
+                    <td><code>pending_system</code> (システム担当待ち)</td>
+                </tr>
+                <tr>
+                    <td><code>pending_system</code></td>
+                    <td>システム担当 (<code>system_admin</code>)</td>
+                    <td>承認 (Approve)</td>
+                    <td><code>pending_producer</code> (PD待ち)</td>
+                </tr>
+                <tr>
+                    <td><code>pending_system</code></td>
+                    <td>システム担当 (<code>system_admin</code>)</td>
+                    <td>差し戻し (Return)</td>
+                    <td><code>returned</code> (差し戻し)</td>
+                </tr>
+                <tr>
+                    <td><code>pending_producer</code></td>
+                    <td>プロデューサー (<code>producer</code>)</td>
+                    <td>承認 (Approve)</td>
+                    <td><code>pending_ceo</code> (代表待ち)</td>
+                </tr>
+                <tr>
+                    <td><code>pending_producer</code></td>
+                    <td>プロデューサー (<code>producer</code>)</td>
+                    <td>却下 (Reject)</td>
+                    <td><code>rejected</code> (却下)</td>
+                </tr>
+                <tr>
+                    <td><code>pending_ceo</code></td>
+                    <td>代表 (<code>ceo</code>)</td>
+                    <td>承認 (Approve)</td>
+                    <td><code>approved</code> (決裁完了)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>4. データベース設計 (Cloud Firestore)</h2>
+        <p>NoSQLデータベースであるFirestoreの特性を活かし、データアクセス効率とセキュリティを考慮してコレクションとルールを設計する。</p>
+
+        <h3>4.1 コレクション定義</h3>
+        <h4><code>users</code> コレクション</h4>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 25%;">フィールド名</th>
+                    <th style="width: 15%;">型</th>
+                    <th style="width: 60%;">説明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>uid</code></td>
+                    <td>String</td>
+                    <td>Firebase AuthのUID（ドキュメントIDとして利用）。</td>
+                </tr>
+                <tr>
+                    <td><code>employeeId</code></td>
+                    <td>String</td>
+                    <td>社員ID（ログイン時などにも利用）。</td>
+                </tr>
+                <tr>
+                    <td><code>name</code></td>
+                    <td>String</td>
+                    <td>社員氏名。</td>
+                </tr>
+                <tr>
+                    <td><code>role</code></td>
+                    <td>String</td>
+                    <td>権限ロール（<code>applicant</code>, <code>system_admin</code>, <code>producer</code>,
+                        <code>ceo</code>）。
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h4><code>ringi_requests</code> コレクション</h4>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 25%;">フィールド名</th>
+                    <th style="width: 15%;">型</th>
+                    <th style="width: 60%;">説明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>id</code></td>
+                    <td>String</td>
+                    <td>稟議書の一意なID（自動生成）。</td>
+                </tr>
+                <tr>
+                    <td><code>title</code></td>
+                    <td>String</td>
+                    <td>稟議のタイトル。</td>
+                </tr>
+                <tr>
+                    <td><code>content</code></td>
+                    <td>String</td>
+                    <td>申請内容・理由等の詳細。</td>
+                </tr>
+                <tr>
+                    <td><code>amount</code></td>
+                    <td>Number</td>
+                    <td>金額（必要な場合）。</td>
+                </tr>
+                <tr>
+                    <td><code>applicantId</code></td>
+                    <td>String</td>
+                    <td>申請者の <code>uid</code> または <code>employeeId</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>status</code></td>
+                    <td>String</td>
+                    <td>現在の状態（<code>pending_system</code>, ... <code>approved</code> 等）。</td>
+                </tr>
+                <tr>
+                    <td><code>createdAt</code></td>
+                    <td>Timestamp</td>
+                    <td>申請日時。</td>
+                </tr>
+                <tr>
+                    <td><code>updatedAt</code></td>
+                    <td>Timestamp</td>
+                    <td>最終更新日時。</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h4><code>audit_logs</code> コレクション</h4>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 25%;">フィールド名</th>
+                    <th style="width: 15%;">型</th>
+                    <th style="width: 60%;">説明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>requestId</code></td>
+                    <td>String</td>
+                    <td>対象となる稟議書のID。</td>
+                </tr>
+                <tr>
+                    <td><code>action</code></td>
+                    <td>String</td>
+                    <td>実行された操作（<code>create</code>, <code>approve</code>, <code>reject</code>, <code>return</code>）。
+                    </td>
+                </tr>
+                <tr>
+                    <td><code>actorId</code></td>
+                    <td>String</td>
+                    <td>操作を実行したユーザーのID。</td>
+                </tr>
+                <tr>
+                    <td><code>comment</code></td>
+                    <td>String</td>
+                    <td>承認、または却下・差し戻し時に入力されたコメント。</td>
+                </tr>
+                <tr>
+                    <td><code>timestamp</code></td>
+                    <td>Timestamp</td>
+                    <td>操作が行われた日時。</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>4.2 セキュリティルール (firestore.rules)</h3>
+        <p>状態の不整合を防ぐため、クライアント（Angular）からの直接の書き込み（作成・更新・削除）は完全に禁止し、すべての状態変更はGoバックエンドを経由させる。</p>
+        <pre><code>rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ユーザーは認証済みであれば読み取り可能。書き込みは禁止。
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Go Admin SDK 経由のみ
+    }
+    // 稟議書データ
+    match /ringi_requests/{requestId} {
+      allow read: if request.auth != null;
+      allow write: if false; // 承認・作成等はすべてGoAPI経由で行う
+    }
+    // 監査ログ
+    match /audit_logs/{logId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Go APIからのみ作成
+    }
+  }
+}</code></pre>
+
+        <h3>4.3 複合インデックス要件</h3>
+        <p>一覧画面でのクエリを成立させるため、以下の複合インデックスをFirebase Console上から設定する。</p>
+        <ul>
+            <li><code>ringi_requests</code> コレクション: <code>status</code> (昇順) + <code>createdAt</code> (降順)</li>
+            <li><code>ringi_requests</code> コレクション: <code>applicantId</code> (昇順) + <code>createdAt</code> (降順)</li>
+            <li><code>audit_logs</code> コレクション: <code>requestId</code> (昇順) + <code>timestamp</code> (降順)</li>
+        </ul>
+
+        <h2>5. バックエンドAPI設計 (Go)</h2>
+        <p>Firestoreのセキュリティルールによる直接書き込みは制限し、状態変更を伴う操作は全てGo APIを経由させる。これにより、強固なトランザクションとビジネスロジックの集中管理を実現する。</p>
+
+        <h3>5.1 エンドポイント構成とペイロード</h3>
+        <pre><code># 主要なAPIエンドポイント構成
+POST /api/v1/ringi                # 新規稟議の作成（申請）
+GET  /api/v1/ringi                # 稟議一覧の取得（クエリパラメータで絞り込み）
+GET  /api/v1/ringi/{id}           # 特定の稟議詳細と履歴（audit_logs）の取得
+POST /api/v1/ringi/{id}/approve   # 稟議の承認
+POST /api/v1/ringi/{id}/reject    # 稟議の却下・差し戻し
+
+# リクエストBody例 (承認・却下時)
+{
+  "comment": "予算内であることを確認しました。進行お願いします。"
+}
+
+# レスポンスBody例 (200 OK)
+{
+  "success": true,
+  "requestId": "r_123456789",
+  "newStatus": "pending_producer",
+  "updatedAt": "2024-05-10T10:00:00Z"
+}</code></pre>
+
+        <h3>5.2 トランザクション処理フロー（承認API詳細）</h3>
+        <div class="step-list">
+            <div class="step-item"><span class="step-title">1. リクエスト検証:</span> HTTPヘッダーのBearerトークン（JWT）を検証し、ユーザーの
+                <code>uid</code> と <code>role</code> を取得する。
+            </div>
+            <div class="step-item"><span class="step-title">2. トランザクション開始:</span> <code>client.RunTransaction</code>
+                を呼び出し、ブロックを開始する。</div>
+            <div class="step-item"><span class="step-title">3. 対象ドキュメント取得:</span> <code>ringi_requests/{id}</code>
+                を読み込む。対象が存在しない、または既に「承認済み」の場合はエラー。</div>
+            <div class="step-item"><span class="step-title">4. 権限・ステータス整合性チェック:</span> 現在の <code>status</code>
+                とアクセスユーザーの <code>role</code> が合致するかチェック。</div>
+            <div class="step-item"><span class="step-title">5. 次ステータス決定:</span>
+                進行ルートに従い、次ステータスまたは最終ステータス（<code>approved</code>）を決定する。</div>
+            <div class="step-item"><span class="step-title">6. 更新書き込み:</span> 対象ドキュメントの <code>status</code> および
+                <code>updatedAt</code> をトランザクション内で更新する。
+            </div>
+            <div class="step-item"><span class="step-title">7. 監査ログ追加:</span> 同じトランザクション内で、<code>audit_logs</code>
+                コレクションに新規ドキュメントを作成する。</div>
+            <div class="step-item"><span class="step-title">8. コミット:</span> トランザクションを終了し、成功レスポンスを返す。</div>
+        </div>
+
+        <h2>6. フロントエンド設計 (Angular)</h2>
+        <p>Angular v16以上のStandalone Componentsをベースとしたモジュール/コンポーネント構成。</p>
+
+        <h3>6.1 コンポーネント構成</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 30%;">コンポーネント名</th>
+                    <th style="width: 70%;">役割・責務</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>AuthLoginComponent</code></td>
+                    <td>Firebase Authを用いた社員ID（メールアドレス等）とパスワードによるログイン画面。</td>
+                </tr>
+                <tr>
+                    <td><code>RingiDashboardComponent</code></td>
+                    <td>自分に関連する稟議一覧を表示するホーム画面。申請中/承認待ちなどのタブを表示。</td>
+                </tr>
+                <tr>
+                    <td><code>RingiCreateComponent</code></td>
+                    <td>新規稟議の入力フォーム画面。Reactive Formsを利用し、入力バリデーションを行う。</td>
+                </tr>
+                <tr>
+                    <td><code>RingiDetailComponent</code></td>
+                    <td>稟議の詳細内容および承認履歴（タイムライン）を表示。「承認」「却下」ボタンを動的に表示。</td>
+                </tr>
+                <tr>
+                    <td><code>ActionDialogComponent</code></td>
+                    <td>承認や却下ボタンを押した際に表示される、コメント入力用モーダル。</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>6.2 サービス（Service）構成</h3>
+        <ul>
+            <li><strong><code>AuthService</code></strong>: Firebase Authのログイン状態を監視し、現在のユーザー情報とJWTトークンを取得する。</li>
+            <li><strong><code>RingiService</code></strong>: HttpClientを用いてGoバックエンドAPIとの通信（申請、承認、一覧取得）を担う。</li>
+            <li><strong><code>FirestoreService</code></strong>: AngularFireを利用し、Go
+                APIを経由しなくてもよい「純粋な読み取り」を行う（例：一覧画面のリアルタイムアップデート）。</li>
+        </ul>
+
+        <h2>7. ディレクトリ構成</h2>
+        <pre><code>ringi-flow/
+├── .gitignore               <-- 認証情報やビルド成果物の除外設定
+├── backend-go/              <-- Go バックエンドAPI
+│   ├── main.go
+│   ├── handlers/            <-- APIエンドポイントのルーティングとハンドラ
+│   ├── services/            <-- トランザクション処理やビジネスロジック
+│   └── go.mod
+└── frontend-angular/        <-- Angular フロントエンド
+    ├── src/
+    └── angular.json</code></pre>
+    </div>
+
+</body>
+
+</html>
