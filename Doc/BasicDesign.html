@@ -388,7 +388,8 @@
 
         <h3>3.1 申請・承認フロー（正常系）</h3>
         <div class="step-list">
-            <div class="step-item"><span class="step-title">Step 1. ログイン:</span> ユーザーはAngular画面から社員IDとパスワードを用いてFirebase
+            <div class="step-item"><span class="step-title">Step 1. ログイン:</span>
+                ユーザーはAngular画面から<strong>社員IDとパスワード</strong>を入力する。Angular側で社員IDを認証用メールアドレスへ変換し（3.4節）、Firebase
                 Authでログインする。</div>
             <div class="step-item"><span class="step-title">Step 2. 新規申請:</span>
                 申請者は稟議内容（タイトル、内容、金額等）を入力し、AngularからGoのバックエンドAPIへ申請リクエストを送信する。</div>
@@ -403,15 +404,25 @@
         </div>
 
         <h3>3.2 却下・差し戻しフロー（異常系）</h3>
+        <p>各承認者は、自身が担当するステータスにおいて「承認」のほかに「差し戻し」「却下」を実行できる。両者は<strong>再申請の可否</strong>が異なるため、明確に区別して扱う。</p>
+        <ul>
+            <li><strong>差し戻し（<code>returned</code>）：</strong>
+                記載内容に不備がある場合に用いる。申請者は内容を修正のうえ<strong>再申請が可能</strong>。再申請された稟議は <code>pending_system</code> から承認ルートをやり直す。</li>
+            <li><strong>却下（<code>rejected</code>）：</strong>
+                申請自体を認めない場合に用いる<strong>終端ステータス</strong>。再申請は不可であり、必要な場合は改めて新規申請として起票し直す。</li>
+        </ul>
         <div class="step-list">
             <div class="step-item"><span class="step-title">Step 1. 却下/差し戻し操作:</span>
-                任意の承認者（例：プロデューサー）が稟議内容に不備を見つけ、画面上から「却下」または「差し戻し」を実行する。</div>
+                任意の承認者（システム担当・プロデューサー・代表のいずれか）が稟議内容に不備を見つけ、画面上から「却下」または「差し戻し」を実行する。この際、<strong>理由コメントの入力を必須</strong>とする。</div>
             <div class="step-item"><span class="step-title">Step 2. 状態更新（Go）:</span> Go
                 APIはトランザクションを用いて、ステータスを「却下（rejected）」または「申請者へ差し戻し（returned）」に変更する。同時に監査ログ（コメント付き）を記録し処理を完了する。</div>
+            <div class="step-item"><span class="step-title">Step 3. 修正・再申請（差し戻し時のみ）:</span> <code>returned</code>
+                の稟議は<strong>申請者本人のみ</strong>が編集・再申請できる。Go APIはトランザクション内で申請者本人であることを検証したうえでステータスを <code>pending_system</code>
+                へ戻し、監査ログに <code>resubmit</code> を記録する。</div>
         </div>
 
         <h3>3.3 状態遷移（ステートマシン）定義</h3>
-        <p>システムの各状態（ステータス）と、実行可能なアクションの定義。</p>
+        <p>システムの各状態（ステータス）と、実行可能なアクションの定義。<strong>ここに定義のない遷移はGo APIがすべて拒否する</strong>（HTTP 409 を返却）。</p>
         <table>
             <thead>
                 <tr>
@@ -441,10 +452,22 @@
                     <td><code>returned</code> (差し戻し)</td>
                 </tr>
                 <tr>
+                    <td><code>pending_system</code></td>
+                    <td>システム担当 (<code>system_admin</code>)</td>
+                    <td>却下 (Reject)</td>
+                    <td><code>rejected</code> (却下)</td>
+                </tr>
+                <tr>
                     <td><code>pending_producer</code></td>
                     <td>プロデューサー (<code>producer</code>)</td>
                     <td>承認 (Approve)</td>
                     <td><code>pending_ceo</code> (代表待ち)</td>
+                </tr>
+                <tr>
+                    <td><code>pending_producer</code></td>
+                    <td>プロデューサー (<code>producer</code>)</td>
+                    <td>差し戻し (Return)</td>
+                    <td><code>returned</code> (差し戻し)</td>
                 </tr>
                 <tr>
                     <td><code>pending_producer</code></td>
@@ -458,8 +481,52 @@
                     <td>承認 (Approve)</td>
                     <td><code>approved</code> (決裁完了)</td>
                 </tr>
+                <tr>
+                    <td><code>pending_ceo</code></td>
+                    <td>代表 (<code>ceo</code>)</td>
+                    <td>差し戻し (Return)</td>
+                    <td><code>returned</code> (差し戻し)</td>
+                </tr>
+                <tr>
+                    <td><code>pending_ceo</code></td>
+                    <td>代表 (<code>ceo</code>)</td>
+                    <td>却下 (Reject)</td>
+                    <td><code>rejected</code> (却下)</td>
+                </tr>
+                <tr>
+                    <td><code>returned</code></td>
+                    <td>申請者 (<code>applicant</code>) ※申請者本人のみ</td>
+                    <td>再申請 (Resubmit)</td>
+                    <td><code>pending_system</code> (システム担当待ち)</td>
+                </tr>
+                <tr>
+                    <td><code>approved</code> / <code>rejected</code></td>
+                    <td>—</td>
+                    <td>（終端・操作不可）</td>
+                    <td>—</td>
+                </tr>
             </tbody>
         </table>
+
+        <h3>3.4 認証方式とアカウント発行方針</h3>
+        <p>Firebase Authentication の「メール/パスワード」プロバイダを利用する。ただしユーザーが画面上で入力するのは<strong>社員IDとパスワードのみ</strong>とし、Angular側で社員IDを固定ドメイン付きのメールアドレスへ変換したうえで
+            <code>signInWithEmailAndPassword</code> に渡す。
+        </p>
+        <pre><code># 社員ID → 認証用メールアドレスの変換ルール
+{社員ID}@ringiflow.ajiado.co.jp
+
+# 例
+E1234  →  E1234@ringiflow.ajiado.co.jp</code></pre>
+        <p>自社ドメインのサブドメインを用いることで、実在する個人の業務用メールアドレスとの衝突・混同を回避する。将来的にMXレコードを設定すれば、パスワードリセットメール等の機能も利用可能となる。</p>
+        <div class="important-box">
+            <h4>【重要】アカウントのセルフ登録は行わない</h4>
+            <ul>
+                <li><strong>発行主体：</strong> アカウントの発行および権限ロール（<code>role</code>）の割り当ては、管理者が Firebase Console または Go の
+                    Admin SDK 経由でのみ実施する。フロントエンドにサインアップ画面は設けない。</li>
+                <li><strong>ユーザー情報の整合：</strong> Firebase Auth のユーザー作成と同時に <code>users</code>
+                    コレクションのドキュメントを作成し、Firebase Auth の <code>uid</code> をドキュメントIDとして用いる。</li>
+            </ul>
+        </div>
 
         <h2>4. データベース設計 (Cloud Firestore)</h2>
         <p>NoSQLデータベースであるFirestoreの特性を活かし、データアクセス効率とセキュリティを考慮してコレクションとルールを設計する。</p>
@@ -533,7 +600,17 @@
                 <tr>
                     <td><code>applicantId</code></td>
                     <td>String</td>
-                    <td>申請者の <code>uid</code> または <code>employeeId</code>。</td>
+                    <td>申請者の <code>uid</code>（Firebase Auth UID）。JWTから直接取得でき改ざんが不可能なため、検索キーはこれに統一する。</td>
+                </tr>
+                <tr>
+                    <td><code>applicantName</code></td>
+                    <td>String</td>
+                    <td>申請者氏名（表示用）。Firestoreは結合クエリを行えないため、申請時に <code>users</code> からコピーして非正規化保持する。</td>
+                </tr>
+                <tr>
+                    <td><code>applicantEmployeeId</code></td>
+                    <td>String</td>
+                    <td>申請者の社員ID（表示用）。上記と同様の理由により非正規化保持する。</td>
                 </tr>
                 <tr>
                     <td><code>status</code></td>
@@ -571,13 +648,19 @@
                 <tr>
                     <td><code>action</code></td>
                     <td>String</td>
-                    <td>実行された操作（<code>create</code>, <code>approve</code>, <code>reject</code>, <code>return</code>）。
+                    <td>実行された操作（<code>create</code>, <code>approve</code>, <code>reject</code>, <code>return</code>,
+                        <code>resubmit</code>）。
                     </td>
                 </tr>
                 <tr>
                     <td><code>actorId</code></td>
                     <td>String</td>
-                    <td>操作を実行したユーザーのID。</td>
+                    <td>操作を実行したユーザーの <code>uid</code>（JWTから取得）。</td>
+                </tr>
+                <tr>
+                    <td><code>actorName</code></td>
+                    <td>String</td>
+                    <td>操作者の氏名（表示用）。履歴タイムラインを1クエリで描画するため非正規化保持する。</td>
                 </tr>
                 <tr>
                     <td><code>comment</code></td>
@@ -593,24 +676,26 @@
         </table>
 
         <h3>4.2 セキュリティルール (firestore.rules)</h3>
-        <p>状態の不整合を防ぐため、クライアント（Angular）からの直接の書き込み（作成・更新・削除）は完全に禁止し、すべての状態変更はGoバックエンドを経由させる。</p>
+        <p>稟議データは金額を含む社内機密であり、また状態の不整合を防ぐ必要があるため、クライアント（Angular）からFirestoreへの直接アクセスは<strong>読み取り・書き込みともに全面禁止</strong>とする。データの取得・更新はすべてGoバックエンドAPIを経由させ、閲覧範囲の絞り込みと権限チェックをサーバー側で一元的に行う。</p>
+        <div class="important-box">
+            <h4>【重要】読み取りもGo API経由に一本化する</h4>
+            <ul>
+                <li><strong>機密性の担保：</strong> ルールを <code>allow read: if request.auth != null</code>
+                    とした場合、ログインした全社員が他者の稟議内容および金額を閲覧できてしまう。これを防ぐため読み取りも禁止し、「自身の申請」または「自身が承認すべき稟議」への絞り込みをGo API側で必ず実施する。</li>
+                <li><strong>リアルタイム更新の不採用：</strong> 本方針によりクライアントSDKによるリアルタイム購読（<code>onSnapshot</code>）は利用しない。承認フローに秒単位の即時性は不要であり、一覧の更新は画面遷移時および手動更新時のAPI再取得で行う。</li>
+                <li><strong>Admin SDK への非適用：</strong> Goバックエンドが用いる Admin SDK
+                    はセキュリティルールの評価対象外であるため、本ルールによる影響を受けない。</li>
+            </ul>
+        </div>
         <pre><code>rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ユーザーは認証済みであれば読み取り可能。書き込みは禁止。
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if false; // Go Admin SDK 経由のみ
-    }
-    // 稟議書データ
-    match /ringi_requests/{requestId} {
-      allow read: if request.auth != null;
-      allow write: if false; // 承認・作成等はすべてGoAPI経由で行う
-    }
-    // 監査ログ
-    match /audit_logs/{logId} {
-      allow read: if request.auth != null;
-      allow write: if false; // Go APIからのみ作成
+
+    // クライアントSDKからの直接アクセスは読み書きともに全面禁止する。
+    // users / ringi_requests / audit_logs のすべてのデータ取得・更新は
+    // Go バックエンドAPI（Admin SDK 経由）でのみ実施する。
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }</code></pre>
@@ -627,14 +712,19 @@ service cloud.firestore {
         <p>Firestoreのセキュリティルールによる直接書き込みは制限し、状態変更を伴う操作は全てGo APIを経由させる。これにより、強固なトランザクションとビジネスロジックの集中管理を実現する。</p>
 
         <h3>5.1 エンドポイント構成とペイロード</h3>
+        <p>却下と差し戻しは再申請の可否が異なる別個の操作であるため、<strong>エンドポイントを分離</strong>する。これにより権限チェックをハンドラ単位で独立させられ、<code>audit_logs.action</code>
+            の値とも1対1で対応する。</p>
         <pre><code># 主要なAPIエンドポイント構成
 POST /api/v1/ringi                # 新規稟議の作成（申請）
 GET  /api/v1/ringi                # 稟議一覧の取得（クエリパラメータで絞り込み）
 GET  /api/v1/ringi/{id}           # 特定の稟議詳細と履歴（audit_logs）の取得
 POST /api/v1/ringi/{id}/approve   # 稟議の承認
-POST /api/v1/ringi/{id}/reject    # 稟議の却下・差し戻し
+POST /api/v1/ringi/{id}/return    # 稟議の差し戻し（申請者による再申請が可能）
+POST /api/v1/ringi/{id}/reject    # 稟議の却下（終端・再申請は不可）
+POST /api/v1/ringi/{id}/resubmit  # 差し戻された稟議の再申請（申請者本人のみ）
 
-# リクエストBody例 (承認・却下時)
+# リクエストBody例 (approve / return / reject)
+#   comment は return・reject では必須、approve では任意とする
 {
   "comment": "予算内であることを確認しました。進行お願いします。"
 }
@@ -645,7 +735,17 @@ POST /api/v1/ringi/{id}/reject    # 稟議の却下・差し戻し
   "requestId": "r_123456789",
   "newStatus": "pending_producer",
   "updatedAt": "2024-05-10T10:00:00Z"
+}
+
+# エラーレスポンス例 (409 Conflict)
+#   3.3節の状態遷移表に定義のない遷移、または権限が一致しない場合
+{
+  "success": false,
+  "error": "invalid_state_transition",
+  "message": "この稟議は既に他の承認者によって処理されています。"
 }</code></pre>
+        <p><code>GET /api/v1/ringi</code> は、4.2節の方針に基づきアクセスユーザーの <code>uid</code> と <code>role</code>
+            をもとに閲覧可能な範囲（自身が申請したもの、または自身が承認すべきもの）へ必ず絞り込んだうえで返却する。</p>
 
         <h3>5.2 トランザクション処理フロー（承認API詳細）</h3>
         <div class="step-list">
@@ -668,6 +768,10 @@ POST /api/v1/ringi/{id}/reject    # 稟議の却下・差し戻し
             <div class="step-item"><span class="step-title">8. コミット:</span> トランザクションを終了し、成功レスポンスを返す。</div>
         </div>
 
+        <p>差し戻し（<code>return</code>）、却下（<code>reject</code>）、再申請（<code>resubmit</code>）の各APIについても、上記と同一のトランザクション処理フローを適用する。Step
+            4の整合性チェックでは3.3節の状態遷移表を唯一の判定基準とし、表に定義のない遷移はすべて HTTP 409 で拒否する。なお <code>resubmit</code>
+            については、ロールではなく<strong>操作者の <code>uid</code> が <code>applicantId</code> と一致すること</strong>を検証条件とする。</p>
+
         <h2>6. フロントエンド設計 (Angular)</h2>
         <p>Angular v16以上のStandalone Componentsをベースとしたモジュール/コンポーネント構成。</p>
 
@@ -682,7 +786,7 @@ POST /api/v1/ringi/{id}/reject    # 稟議の却下・差し戻し
             <tbody>
                 <tr>
                     <td><code>AuthLoginComponent</code></td>
-                    <td>Firebase Authを用いた社員ID（メールアドレス等）とパスワードによるログイン画面。</td>
+                    <td>社員IDとパスワードによるログイン画面。入力された社員IDを認証用メールアドレスへ変換し（3.4節）、Firebase Authで認証する。</td>
                 </tr>
                 <tr>
                     <td><code>RingiDashboardComponent</code></td>
@@ -690,11 +794,12 @@ POST /api/v1/ringi/{id}/reject    # 稟議の却下・差し戻し
                 </tr>
                 <tr>
                     <td><code>RingiCreateComponent</code></td>
-                    <td>新規稟議の入力フォーム画面。Reactive Formsを利用し、入力バリデーションを行う。</td>
+                    <td>新規稟議の入力フォーム画面。Reactive Formsを利用し、入力バリデーションを行う。<code>returned</code>
+                        の稟議を申請者本人が修正・再申請する際の編集画面も兼ねる。</td>
                 </tr>
                 <tr>
                     <td><code>RingiDetailComponent</code></td>
-                    <td>稟議の詳細内容および承認履歴（タイムライン）を表示。「承認」「却下」ボタンを動的に表示。</td>
+                    <td>稟議の詳細内容および承認履歴（タイムライン）を表示。3.3節の状態遷移表に従い、現在のステータスとログインユーザーのロールに応じて「承認」「差し戻し」「却下」「再申請」ボタンを動的に表示する。</td>
                 </tr>
                 <tr>
                     <td><code>ActionDialogComponent</code></td>
@@ -705,21 +810,31 @@ POST /api/v1/ringi/{id}/reject    # 稟議の却下・差し戻し
 
         <h3>6.2 サービス（Service）構成</h3>
         <ul>
-            <li><strong><code>AuthService</code></strong>: Firebase Authのログイン状態を監視し、現在のユーザー情報とJWTトークンを取得する。</li>
-            <li><strong><code>RingiService</code></strong>: HttpClientを用いてGoバックエンドAPIとの通信（申請、承認、一覧取得）を担う。</li>
-            <li><strong><code>FirestoreService</code></strong>: AngularFireを利用し、Go
-                APIを経由しなくてもよい「純粋な読み取り」を行う（例：一覧画面のリアルタイムアップデート）。</li>
+            <li><strong><code>AuthService</code></strong>: Firebase Authのログイン状態を監視し、現在のユーザー情報とJWTトークンを取得する。3.4節の社員ID
+                → 認証用メールアドレスの変換もここで行う。</li>
+            <li><strong><code>RingiService</code></strong>:
+                HttpClientを用いてGoバックエンドAPIとの通信（申請、承認、差し戻し、却下、再申請、一覧・詳細取得）を担う。<strong>読み取りを含むすべてのデータアクセスは本サービスに一本化する。</strong>
+            </li>
         </ul>
+        <p>4.2節の方針によりクライアントからFirestoreへ直接アクセスすることはないため、AngularFireによる読み取り専用サービス（<code>FirestoreService</code>）は設けない。AngularFireの利用はFirebase
+            Authenticationに限定する。</p>
 
         <h2>7. ディレクトリ構成</h2>
-        <pre><code>ringi-flow/
-├── .gitignore               <-- 認証情報やビルド成果物の除外設定
-├── backend-go/              <-- Go バックエンドAPI
+        <pre><code>RingiFlow/
+├── .gitignore               &lt;-- 認証情報やビルド成果物の除外設定
+├── .firebaserc              &lt;-- Firebaseプロジェクト（ringiflow-81f8d）の紐付け
+├── firebase.json            &lt;-- Hosting / Firestore のデプロイ設定
+├── firestore.rules          &lt;-- Firestoreセキュリティルール（4.2節）
+├── firestore.indexes.json   &lt;-- 複合インデックス定義（4.3節）
+├── README.md
+├── Doc/                     &lt;-- 設計ドキュメント
+│   └── BasicDesign.html     &lt;-- 本設計書
+├── backend-go/              &lt;-- Go バックエンドAPI
 │   ├── main.go
-│   ├── handlers/            <-- APIエンドポイントのルーティングとハンドラ
-│   ├── services/            <-- トランザクション処理やビジネスロジック
+│   ├── handlers/            &lt;-- APIエンドポイントのルーティングとハンドラ
+│   ├── services/            &lt;-- トランザクション処理やビジネスロジック
 │   └── go.mod
-└── frontend-angular/        <-- Angular フロントエンド
+└── frontend-angular/        &lt;-- Angular フロントエンド
     ├── src/
     └── angular.json</code></pre>
     </div>
