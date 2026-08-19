@@ -146,24 +146,11 @@ func (s *RingiService) Transition(ctx context.Context, actor *models.User, id, a
 		}
 
 		// Step 4: 状態遷移表による権限・ステータス整合性チェック
-		rule, ok := models.Transitions[models.TransitionKey{From: req.Status, Action: action}]
-		if !ok {
-			return newError(http.StatusConflict, "invalid_state_transition",
-				"現在のステータスではこの操作を実行できません。他の承認者によって既に処理された可能性があります。")
-		}
-		if rule.RequireOwner && req.ApplicantID != actor.UID {
-			return newError(http.StatusConflict, "permission_denied",
-				"この操作は申請者本人のみが実行できます。")
-		}
-		if rule.RequiredRole != "" && rule.RequiredRole != actor.Role {
-			return newError(http.StatusConflict, "permission_denied",
-				"この稟議を処理する権限がありません。")
+		rule, appErr := evaluateTransition(&req, actor, action, in.Comment)
+		if appErr != nil {
+			return appErr
 		}
 		comment := strings.TrimSpace(in.Comment)
-		if rule.CommentRequired && comment == "" {
-			return newError(http.StatusBadRequest, "comment_required",
-				"理由コメントの入力は必須です。")
-		}
 
 		// Step 5-6: 次ステータスの決定と更新
 		updates := []firestore.Update{
@@ -172,26 +159,11 @@ func (s *RingiService) Transition(ctx context.Context, actor *models.User, id, a
 		}
 		// 再申請時は申請内容の修正を許可する（基本設計書 3.2 Step3）。
 		if action == models.ActionResubmit {
-			if in.Title != nil {
-				title := strings.TrimSpace(*in.Title)
-				if title == "" {
-					return newError(http.StatusBadRequest, "invalid_argument", "タイトルを入力してください。")
-				}
-				updates = append(updates, firestore.Update{Path: "title", Value: title})
+			edits, appErr := resubmitUpdates(in)
+			if appErr != nil {
+				return appErr
 			}
-			if in.Content != nil {
-				content := strings.TrimSpace(*in.Content)
-				if content == "" {
-					return newError(http.StatusBadRequest, "invalid_argument", "申請内容を入力してください。")
-				}
-				updates = append(updates, firestore.Update{Path: "content", Value: content})
-			}
-			if in.Amount != nil {
-				if *in.Amount < 0 {
-					return newError(http.StatusBadRequest, "invalid_argument", "金額には0以上の値を指定してください。")
-				}
-				updates = append(updates, firestore.Update{Path: "amount", Value: *in.Amount})
-			}
+			updates = append(updates, edits...)
 		}
 		if err := tx.Update(docRef, updates); err != nil {
 			return err
@@ -223,6 +195,59 @@ func (s *RingiService) Transition(ctx context.Context, actor *models.User, id, a
 		return nil, errInternal()
 	}
 	return result, nil
+}
+
+// evaluateTransition は状態遷移表に基づいて操作の可否を判定する。
+//
+// Firestore に依存しない純粋関数として切り出しているのは、承認フローの正しさを
+// 左右する最も重要な判定であり、単体テストで網羅的に検証できるようにするため。
+// 判定順序は「遷移の存在 → 本人確認 → ロール確認 → コメント必須」の順とする。
+func evaluateTransition(req *models.RingiRequest, actor *models.User, action, comment string) (models.TransitionRule, *Error) {
+	rule, ok := models.Transitions[models.TransitionKey{From: req.Status, Action: action}]
+	if !ok {
+		return rule, newError(http.StatusConflict, "invalid_state_transition",
+			"現在のステータスではこの操作を実行できません。他の承認者によって既に処理された可能性があります。")
+	}
+	if rule.RequireOwner && req.ApplicantID != actor.UID {
+		return rule, newError(http.StatusConflict, "permission_denied",
+			"この操作は申請者本人のみが実行できます。")
+	}
+	if rule.RequiredRole != "" && rule.RequiredRole != actor.Role {
+		return rule, newError(http.StatusConflict, "permission_denied",
+			"この稟議を処理する権限がありません。")
+	}
+	if rule.CommentRequired && strings.TrimSpace(comment) == "" {
+		return rule, newError(http.StatusBadRequest, "comment_required",
+			"理由コメントの入力は必須です。")
+	}
+	return rule, nil
+}
+
+// resubmitUpdates は再申請時に指定された申請内容の修正を検証し、
+// 更新対象のフィールドを返す。nil のフィールドは既存の値を維持する。
+func resubmitUpdates(in TransitionInput) ([]firestore.Update, *Error) {
+	updates := make([]firestore.Update, 0, 3)
+	if in.Title != nil {
+		title := strings.TrimSpace(*in.Title)
+		if title == "" {
+			return nil, newError(http.StatusBadRequest, "invalid_argument", "タイトルを入力してください。")
+		}
+		updates = append(updates, firestore.Update{Path: "title", Value: title})
+	}
+	if in.Content != nil {
+		content := strings.TrimSpace(*in.Content)
+		if content == "" {
+			return nil, newError(http.StatusBadRequest, "invalid_argument", "申請内容を入力してください。")
+		}
+		updates = append(updates, firestore.Update{Path: "content", Value: content})
+	}
+	if in.Amount != nil {
+		if *in.Amount < 0 {
+			return nil, newError(http.StatusBadRequest, "invalid_argument", "金額には0以上の値を指定してください。")
+		}
+		updates = append(updates, firestore.Update{Path: "amount", Value: *in.Amount})
+	}
+	return updates, nil
 }
 
 // ListScope は一覧取得の絞り込み範囲。
@@ -323,7 +348,7 @@ func (s *RingiService) Get(ctx context.Context, actor *models.User, id string) (
 		return nil, err
 	}
 
-	if !s.canView(actor, &req, history) {
+	if !canView(actor, &req, history) {
 		return nil, errForbidden()
 	}
 	return &Detail{Request: req, History: history}, nil
@@ -336,7 +361,7 @@ func (s *RingiService) Get(ctx context.Context, actor *models.User, id string) (
 //   - 過去に自身が操作した稟議（監査ログに記録がある）は閲覧できる
 //
 // これにより applicant ロールが他者の稟議を閲覧することはできない。
-func (s *RingiService) canView(actor *models.User, req *models.RingiRequest, history []models.AuditLog) bool {
+func canView(actor *models.User, req *models.RingiRequest, history []models.AuditLog) bool {
 	if req.ApplicantID == actor.UID {
 		return true
 	}

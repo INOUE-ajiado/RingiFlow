@@ -715,6 +715,7 @@ service cloud.firestore {
         <p>却下と差し戻しは再申請の可否が異なる別個の操作であるため、<strong>エンドポイントを分離</strong>する。これにより権限チェックをハンドラ単位で独立させられ、<code>audit_logs.action</code>
             の値とも1対1で対応する。</p>
         <pre><code># 主要なAPIエンドポイント構成
+GET  /api/v1/me                   # ログイン中ユーザーの氏名・社員ID・ロールの取得
 POST /api/v1/ringi                # 新規稟議の作成（申請）
 GET  /api/v1/ringi                # 稟議一覧の取得（クエリパラメータで絞り込み）
 GET  /api/v1/ringi/{id}           # 特定の稟議詳細と履歴（audit_logs）の取得
@@ -744,6 +745,8 @@ POST /api/v1/ringi/{id}/resubmit  # 差し戻された稟議の再申請（申�
   "error": "invalid_state_transition",
   "message": "この稟議は既に他の承認者によって処理されています。"
 }</code></pre>
+        <p><code>GET /api/v1/me</code>
+            は、フロントエンドが操作ボタンの表示判定に用いる権限ロールを取得するためのエンドポイントである。ロールをクライアント側で保持・判断させず常にサーバーから取得させることで、権限の詐称を防ぐ。</p>
         <p><code>GET /api/v1/ringi</code> は、4.2節の方針に基づきアクセスユーザーの <code>uid</code> と <code>role</code>
             をもとに閲覧可能な範囲（自身が申請したもの、または自身が承認すべきもの）へ必ず絞り込んだうえで返却する。</p>
 
@@ -816,8 +819,8 @@ POST /api/v1/ringi/{id}/resubmit  # 差し戻された稟議の再申請（申�
                 HttpClientを用いてGoバックエンドAPIとの通信（申請、承認、差し戻し、却下、再申請、一覧・詳細取得）を担う。<strong>読み取りを含むすべてのデータアクセスは本サービスに一本化する。</strong>
             </li>
         </ul>
-        <p>4.2節の方針によりクライアントからFirestoreへ直接アクセスすることはないため、AngularFireによる読み取り専用サービス（<code>FirestoreService</code>）は設けない。AngularFireの利用はFirebase
-            Authenticationに限定する。</p>
+        <p>4.2節の方針によりクライアントからFirestoreへ直接アクセスすることはないため、読み取り専用サービス（<code>FirestoreService</code>）は設けない。クライアントにおけるFirebase
+            SDKの利用はAuthenticationに限定されるため、ラッパーライブラリ（AngularFire）は導入せず、公式の <code>firebase</code> パッケージ（モジュラーSDK）を直接利用する。</p>
 
         <h2>7. ディレクトリ構成</h2>
         <pre><code>RingiFlow/
@@ -837,6 +840,42 @@ POST /api/v1/ringi/{id}/resubmit  # 差し戻された稟議の再申請（申�
 └── frontend-angular/        &lt;-- Angular フロントエンド
     ├── src/
     └── angular.json</code></pre>
+
+        <h2>8. 改訂履歴</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 15%;">版</th>
+                    <th style="width: 20%;">日付</th>
+                    <th style="width: 65%;">内容</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1.0</td>
+                    <td>2026-08-20</td>
+                    <td>初版。</td>
+                </tr>
+                <tr>
+                    <td>1.1</td>
+                    <td>2026-08-20</td>
+                    <td>未定義事項を解消。状態遷移表を全承認者について対称化し、<code>returned</code>
+                        からの再申請遷移と終端状態を明記（3.2/3.3節）。認証方式とアカウント発行方針を新設（3.4節）。<code>applicantId</code> を
+                        <code>uid</code>
+                        に統一し、表示用の非正規化フィールドを追加（4.1節）。クライアントからのFirestore読み取りを全面禁止し、閲覧範囲の絞り込みをGo
+                        API側に集約（4.2/6.2節）。差し戻し・再申請のエンドポイントを追加（5.1節）。
+                    </td>
+                </tr>
+                <tr>
+                    <td>1.2</td>
+                    <td>2026-08-20</td>
+                    <td>実装内容を反映。権限ロール取得用の <code>GET /api/v1/me</code>
+                        を追加（5.1節）。クライアントのFirebase SDK利用がAuthenticationに限定されるため、AngularFireを導入せず公式
+                        <code>firebase</code> パッケージを直接利用する方針へ変更（6.2節）。
+                    </td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 
 </body>

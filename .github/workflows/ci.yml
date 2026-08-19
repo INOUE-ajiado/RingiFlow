@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 同一ブランチで新しい push があった場合、実行中のジョブを打ち切る
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Go バックエンド
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-go
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: backend-go/go.sum
+
+      - name: フォーマット確認
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt が適用されていないファイルがあります:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go mod tidy の差分確認
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: vet
+        run: go vet ./...
+
+      - name: ビルド
+        run: go build ./...
+
+      - name: テスト
+        run: go test ./... -count=1
+
+  frontend:
+    name: Angular フロントエンド
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-angular
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend-angular/package-lock.json
+
+      - name: 依存関係のインストール
+        run: npm ci
+
+      - name: ビルド
+        run: npm run build
+
+      - name: テスト
+        run: npm test -- --watch=false
+
+  rules:
+    name: Firestore ルールの構文確認
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # ルールが Firestore にデプロイ可能な構文であることのみを検証する。
+      # 実際のデプロイは行わないため認証情報は不要。
+      - name: エミュレータでルールを読み込む
+        run: |
+          npm install -g firebase-tools
+          timeout 90 firebase emulators:exec --only firestore --project demo-ringiflow 'echo "rules loaded successfully"'

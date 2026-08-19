@@ -1,5 +1,7 @@
 # RingiFlow
 
+[![CI](https://github.com/INOUE-ajiado/RingiFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/INOUE-ajiado/RingiFlow/actions/workflows/ci.yml)
+
 社員IDを起点に「システム担当 → プロデューサー → 代表」の順で進む、直線ルート型の稟議書承認フローシステム。
 
 ## 技術スタック
@@ -65,6 +67,7 @@ Firestore セキュリティルールは読み書きともに全面禁止（`all
 ## API エンドポイント
 
 ```
+GET  /api/v1/me                   # ログイン中ユーザーの氏名・社員ID・ロール
 POST /api/v1/ringi                # 新規稟議の作成（申請）
 GET  /api/v1/ringi                # 稟議一覧の取得
 GET  /api/v1/ringi/{id}           # 詳細と履歴（audit_logs）の取得
@@ -176,9 +179,16 @@ npm start
 ## テスト
 
 ```bash
-cd backend-go       && go test ./...          # 状態遷移表の検証
+cd backend-go       && go test ./...          # 状態遷移・権限判定・入力検証
 cd frontend-angular && npm test -- --watch=false
 ```
+
+いずれも外部サービスへの接続を必要としないため、認証情報なしで実行できる。
+承認フローの正しさを左右する判定ロジック（`evaluateTransition` / `canView`）は
+Firestore に依存しない純粋関数として切り出し、網羅的に検証している。
+
+`main` への push と PR では [GitHub Actions](.github/workflows/ci.yml) が
+両スタックのビルド・テストと Firestore ルールの構文確認を実行する。
 
 ## デプロイ
 
