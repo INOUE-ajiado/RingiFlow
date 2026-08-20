@@ -1,6 +1,6 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 
 import { AuthService } from '../core/auth.service';
 import {
@@ -261,7 +261,6 @@ import { StatusBadge } from '../shared/status-badge';
 export class RingiDetailComponent {
   private readonly ringi = inject(RingiService);
   private readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
 
   readonly id = input.required<string>();
 
