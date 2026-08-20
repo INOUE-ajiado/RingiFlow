@@ -62,10 +62,15 @@ func run() error {
 
 	root := http.NewServeMux()
 	root.Handle("/api/", auth.Wrap(apiMux))
-	root.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+	// ヘルスチェック。Cloud Run の Google Frontend は /healthz を予約パスとして
+	// 横取りしコンテナへ転送しないため、正となるパスは /health とする。
+	// /healthz はローカルや他の実行環境向けに併せて公開する。
+	health := func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
-	})
+	}
+	root.HandleFunc("GET /health", health)
+	root.HandleFunc("GET /healthz", health)
 
 	srv := &http.Server{
 		Addr:              ":" + port,

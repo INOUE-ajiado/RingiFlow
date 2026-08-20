@@ -8,8 +8,8 @@
 export const environment = {
   production: true,
 
-  /** Go バックエンドAPI のベースURL（Cloud Run のデプロイ後に差し替える） */
-  apiBaseUrl: 'https://ringiflow-api-812083655988.asia-northeast1.run.app',
+  /** Go バックエンドAPI のベースURL（Cloud Run: asia-northeast1 / ringiflow-api） */
+  apiBaseUrl: 'https://ringiflow-api-uasn6fwgaq-an.a.run.app',
 
   /** 社員ID に付与して認証用メールアドレスを構成するドメイン（基本設計書 3.4節） */
   authEmailDomain: 'ringiflow.ajiado.co.jp',
