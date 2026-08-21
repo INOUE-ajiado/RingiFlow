@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -203,12 +204,14 @@ func (s *RingiService) Transition(ctx context.Context, actor *models.User, id, a
 			{Path: "updatedAt", Value: now},
 		}
 		// 再申請時は申請内容の修正を許可する（基本設計書 3.2 Step3）。
+		var changes []models.FieldChange
 		if action == models.ActionResubmit {
-			edits, appErr := resubmitUpdates(in)
+			edits, diff, appErr := resubmitUpdates(&req, in)
 			if appErr != nil {
 				return appErr
 			}
 			updates = append(updates, edits...)
+			changes = diff
 		}
 		if err := tx.Update(docRef, updates); err != nil {
 			return err
@@ -222,6 +225,7 @@ func (s *RingiService) Transition(ctx context.Context, actor *models.User, id, a
 			ActorName: actor.Name,
 			Comment:   comment,
 			Timestamp: now,
+			Changes:   changes,
 		}); err != nil {
 			return err
 		}
@@ -289,30 +293,53 @@ func evaluateTransition(req *models.RingiRequest, actor *models.User, action, co
 }
 
 // resubmitUpdates は再申請時に指定された申請内容の修正を検証し、
-// 更新対象のフィールドを返す。nil のフィールドは既存の値を維持する。
-func resubmitUpdates(in TransitionInput) ([]firestore.Update, *Error) {
+// 更新対象のフィールドと、実際に値が変わった項目の差分を返す。
+// nil のフィールドは既存の値を維持する。
+//
+// 差分を記録するのは、差し戻した承認者が「指摘した点が直っているか」を
+// 履歴だけで判断できるようにするため。値が同じ場合は変更として扱わない。
+func resubmitUpdates(current *models.RingiRequest, in TransitionInput) ([]firestore.Update, []models.FieldChange, *Error) {
 	updates := make([]firestore.Update, 0, 3)
+	changes := make([]models.FieldChange, 0, 3)
+
 	if in.Title != nil {
 		title := strings.TrimSpace(*in.Title)
 		if title == "" {
-			return nil, newError(http.StatusBadRequest, "invalid_argument", "タイトルを入力してください。")
+			return nil, nil, newError(http.StatusBadRequest, "invalid_argument", "タイトルを入力してください。")
 		}
 		updates = append(updates, firestore.Update{Path: "title", Value: title})
+		if title != current.Title {
+			changes = append(changes, models.FieldChange{
+				Field: models.FieldTitle, Before: current.Title, After: title,
+			})
+		}
 	}
 	if in.Content != nil {
 		content := strings.TrimSpace(*in.Content)
 		if content == "" {
-			return nil, newError(http.StatusBadRequest, "invalid_argument", "申請内容を入力してください。")
+			return nil, nil, newError(http.StatusBadRequest, "invalid_argument", "申請内容を入力してください。")
 		}
 		updates = append(updates, firestore.Update{Path: "content", Value: content})
+		if content != current.Content {
+			changes = append(changes, models.FieldChange{
+				Field: models.FieldContent, Before: current.Content, After: content,
+			})
+		}
 	}
 	if in.Amount != nil {
 		if *in.Amount < 0 {
-			return nil, newError(http.StatusBadRequest, "invalid_argument", "金額には0以上の値を指定してください。")
+			return nil, nil, newError(http.StatusBadRequest, "invalid_argument", "金額には0以上の値を指定してください。")
 		}
 		updates = append(updates, firestore.Update{Path: "amount", Value: *in.Amount})
+		if *in.Amount != current.Amount {
+			changes = append(changes, models.FieldChange{
+				Field:  models.FieldAmount,
+				Before: strconv.FormatInt(current.Amount, 10),
+				After:  strconv.FormatInt(*in.Amount, 10),
+			})
+		}
 	}
-	return updates, nil
+	return updates, changes, nil
 }
 
 // Detail は稟議の詳細と承認履歴を返す。

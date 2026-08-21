@@ -86,6 +86,24 @@ type AuditLog struct {
 	ActorName string    `firestore:"actorName" json:"actorName"`
 	Comment   string    `firestore:"comment" json:"comment"`
 	Timestamp time.Time `firestore:"timestamp" json:"timestamp"`
+	// Changes は再申請時に変更された項目。差し戻した承認者が
+	// 「指摘した点が直っているか」を履歴だけで判断できるようにする。
+	Changes []FieldChange `firestore:"changes" json:"changes"`
+}
+
+// 変更を記録する対象のフィールド名。
+const (
+	FieldTitle   = "title"
+	FieldContent = "content"
+	FieldAmount  = "amount"
+)
+
+// FieldChange は1項目の変更内容。表示用のラベルはフロントエンドが
+// Field の値から解決するため、ここでは持たない。
+type FieldChange struct {
+	Field  string `firestore:"field" json:"field"`
+	Before string `firestore:"before" json:"before"`
+	After  string `firestore:"after" json:"after"`
 }
 
 // TransitionKey は「現在ステータス」と「アクション」の組。

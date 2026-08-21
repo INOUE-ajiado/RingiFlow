@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AppUser,
+  FIELD_LABELS,
   RingiRequest,
   RingiStatus,
   approvalRoute,
   availableActions,
   canModifyAttachments,
+  formatFieldValue,
   formatFileSize,
   isTerminal,
   requiresCEOApproval,
@@ -212,5 +214,27 @@ describe('金額による承認ルート', () => {
     for (const amount of [0, 50000, THRESHOLD, 1000000]) {
       expect(approvalRoute(amount, THRESHOLD)[0].status).toBe('pending_system');
     }
+  });
+});
+
+describe('変更差分の表示', () => {
+  it('項目名を日本語に解決する', () => {
+    expect(FIELD_LABELS['title']).toBe('タイトル');
+    expect(FIELD_LABELS['content']).toBe('申請内容');
+    expect(FIELD_LABELS['amount']).toBe('金額');
+  });
+
+  it('金額は3桁区切りに整形する', () => {
+    expect(formatFieldValue('amount', '250000')).toBe('250,000円');
+    expect(formatFieldValue('amount', '0')).toBe('0円');
+  });
+
+  it('金額以外はそのまま返す', () => {
+    expect(formatFieldValue('title', '開発用PCの購入')).toBe('開発用PCの購入');
+    expect(formatFieldValue('content', '理由は以下のとおり')).toBe('理由は以下のとおり');
+  });
+
+  it('数値として解釈できない金額はそのまま返す', () => {
+    expect(formatFieldValue('amount', 'not-a-number')).toBe('not-a-number');
   });
 });

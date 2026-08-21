@@ -420,7 +420,7 @@
                 APIはトランザクションを用いて、ステータスを「却下（rejected）」または「申請者へ差し戻し（returned）」に変更する。同時に監査ログ（コメント付き）を記録し処理を完了する。</div>
             <div class="step-item"><span class="step-title">Step 3. 修正・再申請（差し戻し時のみ）:</span> <code>returned</code>
                 の稟議は<strong>申請者本人のみ</strong>が編集・再申請できる。Go APIはトランザクション内で申請者本人であることを検証したうえでステータスを <code>pending_system</code>
-                へ戻し、監査ログに <code>resubmit</code> を記録する。</div>
+                へ戻し、監査ログに <code>resubmit</code> を記録する。このとき<strong>変更された項目の変更前後の値を差分として併せて記録する</strong>（<code>audit_logs.changes</code>、4.1節）。差し戻した承認者が「指摘した点が直っているか」を履歴だけで判断できるようにするためであり、値が変わらなかった項目は差分に含めないことで「直っていない」と「そもそも触っていない」を区別できる。</div>
         </div>
 
         <h3>3.3 状態遷移（ステートマシン）定義</h3>
@@ -757,6 +757,15 @@ E1234  →  E1234@ringiflow.ajiado.co.jp</code></pre>
                     <td>Timestamp</td>
                     <td>操作が行われた日時。</td>
                 </tr>
+                <tr>
+                    <td><code>changes</code></td>
+                    <td>Array</td>
+                    <td>再申請（<code>resubmit</code>）時に変更された項目の配列。各要素は
+                        <code>field</code>（<code>title</code> / <code>content</code> /
+                        <code>amount</code>）・<code>before</code>・<code>after</code>
+                        を持つ。値が変わらなかった項目は含めない。
+                    </td>
+                </tr>
             </tbody>
         </table>
 
@@ -1074,6 +1083,11 @@ DELETE /api/v1/ringi/{id}/attachments/{attachmentId}  # 削除
                         を追加（5.1節）。クライアントのFirebase SDK利用がAuthenticationに限定されるため、AngularFireを導入せず公式
                         <code>firebase</code> パッケージを直接利用する方針へ変更（6.2節）。
                     </td>
+                </tr>
+                <tr>
+                    <td>1.6</td>
+                    <td>2026-08-22</td>
+                    <td>再申請時の変更差分を監査ログへ記録する仕様を追加（3.2/4.1節）。</td>
                 </tr>
                 <tr>
                     <td>1.5</td>

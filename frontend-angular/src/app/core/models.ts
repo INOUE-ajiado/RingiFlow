@@ -69,6 +69,31 @@ export interface AuditLog {
   actorName: string;
   comment: string;
   timestamp: string;
+  /** 再申請時に変更された項目。変更がなければ null または空。 */
+  changes: FieldChange[] | null;
+}
+
+/** 再申請での1項目の変更内容。 */
+export interface FieldChange {
+  field: string;
+  before: string;
+  after: string;
+}
+
+/** 変更差分に表示する項目名。 */
+export const FIELD_LABELS: Record<string, string> = {
+  title: 'タイトル',
+  content: '申請内容',
+  amount: '金額',
+};
+
+/** 差分の値を表示用に整える。金額は3桁区切りにする。 */
+export function formatFieldValue(field: string, value: string): string {
+  if (field === 'amount') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toLocaleString() + '円' : value;
+  }
+  return value;
 }
 
 export const STATUS_LABELS: Record<RingiStatus, string> = {

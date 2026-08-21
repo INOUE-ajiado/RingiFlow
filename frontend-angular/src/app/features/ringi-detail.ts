@@ -6,6 +6,8 @@ import { AuthService } from '../core/auth.service';
 import {
   ACTION_LABELS,
   Attachment,
+  FIELD_LABELS,
+  FieldChange,
   AuditLog,
   LogAction,
   RingiAction,
@@ -14,6 +16,7 @@ import {
   approvalRoute,
   availableActions,
   canModifyAttachments,
+  formatFieldValue,
   formatFileSize,
   requiresCEOApproval,
 } from '../core/models';
@@ -186,6 +189,18 @@ import { StatusBadge } from '../shared/status-badge';
                 </div>
                 @if (log.comment) {
                   <p class="comment">{{ log.comment }}</p>
+                }
+                @if (log.changes?.length) {
+                  <ul class="changes">
+                    @for (change of log.changes; track change.field) {
+                      <li>
+                        <span class="change-field">{{ fieldLabel(change.field) }}</span>
+                        <span class="change-before">{{ fieldValue(change, 'before') }}</span>
+                        <app-icon name="chevron-right" [size]="12" />
+                        <span class="change-after">{{ fieldValue(change, 'after') }}</span>
+                      </li>
+                    }
+                  </ul>
                 }
               </li>
             }
@@ -525,6 +540,51 @@ import { StatusBadge } from '../shared/status-badge';
       margin-left: auto;
     }
 
+    /* 再申請の変更差分。何が直ったかを履歴だけで追えるようにする */
+    .changes {
+      list-style: none;
+      margin: var(--space-2) 0 0;
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      background: var(--bg-subtle);
+    }
+
+    .changes li {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: var(--space-1) var(--space-2);
+      padding: var(--space-1) 0;
+      font-size: var(--text-xs);
+      line-height: 1.7;
+
+      app-icon {
+        color: var(--text-faint);
+        align-self: center;
+      }
+    }
+
+    .change-field {
+      flex: none;
+      min-width: 4.5rem;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .change-before {
+      color: var(--text-muted);
+      text-decoration: line-through;
+      text-decoration-color: var(--text-faint);
+      word-break: break-word;
+    }
+
+    .change-after {
+      color: var(--text-strong);
+      font-weight: 600;
+      word-break: break-word;
+    }
+
     .comment {
       margin: var(--space-2) 0 0;
       padding: var(--space-3) var(--space-4);
@@ -609,6 +669,16 @@ export class RingiDetailComponent {
 
   label(action: LogAction): string {
     return ACTION_LABELS[action];
+  }
+
+  fieldLabel(field: string): string {
+    return FIELD_LABELS[field] ?? field;
+  }
+
+  /** 差分の値を表示用に整える。長い本文は途中で省略する。 */
+  fieldValue(change: FieldChange, side: 'before' | 'after'): string {
+    const formatted = formatFieldValue(change.field, change[side]);
+    return formatted.length > 60 ? formatted.slice(0, 60) + '…' : formatted;
   }
 
   fileSize(bytes: number): string {

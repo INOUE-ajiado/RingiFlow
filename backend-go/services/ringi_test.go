@@ -177,18 +177,32 @@ func TestEvaluateTransition_未定義のアクションを拒否する(t *testin
 // --- resubmitUpdates ------------------------------------------------------
 
 func TestResubmitUpdates(t *testing.T) {
+	// 変更前の値。差分の比較対象となる。
+	base := func() *models.RingiRequest {
+		return &models.RingiRequest{
+			Title:   "元のタイトル",
+			Content: "元の内容",
+			Amount:  10000,
+		}
+	}
+
 	t.Run("未指定のフィールドは更新対象に含まれない", func(t *testing.T) {
-		updates, err := resubmitUpdates(TransitionInput{})
+		updates, changes, err := resubmitUpdates(base(), TransitionInput{})
 		if err != nil {
 			t.Fatalf("予期しないエラー: %v", err)
 		}
 		if len(updates) != 0 {
 			t.Errorf("更新対象: got %d件, want 0件", len(updates))
 		}
+		if len(changes) != 0 {
+			t.Errorf("差分: got %d件, want 0件", len(changes))
+		}
 	})
 
 	t.Run("指定されたフィールドのみ更新対象となる", func(t *testing.T) {
-		updates, err := resubmitUpdates(TransitionInput{Title: ptr("新タイトル"), Amount: ptr(int64(500))})
+		updates, _, err := resubmitUpdates(base(), TransitionInput{
+			Title: ptr("新タイトル"), Amount: ptr(int64(500)),
+		})
 		if err != nil {
 			t.Fatalf("予期しないエラー: %v", err)
 		}
@@ -204,7 +218,7 @@ func TestResubmitUpdates(t *testing.T) {
 	})
 
 	t.Run("前後の空白を除去する", func(t *testing.T) {
-		updates, err := resubmitUpdates(TransitionInput{Title: ptr("  タイトル  ")})
+		updates, _, err := resubmitUpdates(base(), TransitionInput{Title: ptr("  タイトル  ")})
 		if err != nil {
 			t.Fatalf("予期しないエラー: %v", err)
 		}
@@ -224,7 +238,7 @@ func TestResubmitUpdates(t *testing.T) {
 			{"負の金額", TransitionInput{Amount: ptr(int64(-1))}},
 		}
 		for _, c := range cases {
-			if _, err := resubmitUpdates(c.in); err == nil {
+			if _, _, err := resubmitUpdates(base(), c.in); err == nil {
 				t.Errorf("%s が許可された", c.name)
 			} else if err.HTTPStatus != http.StatusBadRequest {
 				t.Errorf("%s: got %d, want 400", c.name, err.HTTPStatus)
@@ -233,14 +247,102 @@ func TestResubmitUpdates(t *testing.T) {
 	})
 
 	t.Run("金額0は有効な値として扱う", func(t *testing.T) {
-		updates, err := resubmitUpdates(TransitionInput{Amount: ptr(int64(0))})
+		updates, changes, err := resubmitUpdates(base(), TransitionInput{Amount: ptr(int64(0))})
 		if err != nil {
 			t.Fatalf("金額0が拒否された: %v", err)
 		}
 		if len(updates) != 1 || updates[0].Value != int64(0) {
 			t.Errorf("got %+v", updates)
 		}
+		if len(changes) != 1 || changes[0].After != "0" {
+			t.Errorf("差分が記録されていない: %+v", changes)
+		}
 	})
+}
+
+// --- 再申請の変更差分 -------------------------------------------------------
+
+func TestResubmitUpdates_変更内容を差分として記録する(t *testing.T) {
+	current := &models.RingiRequest{Title: "旧題", Content: "旧文", Amount: 10000}
+
+	_, changes, err := resubmitUpdates(current, TransitionInput{
+		Title:   ptr("新題"),
+		Content: ptr("新文"),
+		Amount:  ptr(int64(250000)),
+	})
+	if err != nil {
+		t.Fatalf("予期しないエラー: %v", err)
+	}
+	if len(changes) != 3 {
+		t.Fatalf("差分: got %d件, want 3件 (%+v)", len(changes), changes)
+	}
+
+	want := []models.FieldChange{
+		{Field: models.FieldTitle, Before: "旧題", After: "新題"},
+		{Field: models.FieldContent, Before: "旧文", After: "新文"},
+		{Field: models.FieldAmount, Before: "10000", After: "250000"},
+	}
+	for i, w := range want {
+		if changes[i] != w {
+			t.Errorf("差分[%d]: got %+v, want %+v", i, changes[i], w)
+		}
+	}
+}
+
+// 値が変わっていない項目は差分に含めない。
+// 「直っていない」と「そもそも触っていない」を履歴上で区別できるようにするため。
+func TestResubmitUpdates_同じ値は差分に含めない(t *testing.T) {
+	current := &models.RingiRequest{Title: "同じ題", Content: "同じ文", Amount: 5000}
+
+	updates, changes, err := resubmitUpdates(current, TransitionInput{
+		Title:   ptr("同じ題"),
+		Content: ptr("同じ文"),
+		Amount:  ptr(int64(5000)),
+	})
+	if err != nil {
+		t.Fatalf("予期しないエラー: %v", err)
+	}
+	// 更新自体は行われるが、差分は記録されない
+	if len(updates) != 3 {
+		t.Errorf("更新対象: got %d件, want 3件", len(updates))
+	}
+	if len(changes) != 0 {
+		t.Errorf("差分: got %d件, want 0件 (%+v)", len(changes), changes)
+	}
+}
+
+// 空白のみの違いは差分として扱わない（前後の空白を除去してから比較する）。
+func TestResubmitUpdates_空白の差は差分にしない(t *testing.T) {
+	current := &models.RingiRequest{Title: "タイトル", Content: "内容", Amount: 1}
+
+	_, changes, err := resubmitUpdates(current, TransitionInput{Title: ptr("  タイトル  ")})
+	if err != nil {
+		t.Fatalf("予期しないエラー: %v", err)
+	}
+	if len(changes) != 0 {
+		t.Errorf("空白だけの違いが差分になっている: %+v", changes)
+	}
+}
+
+func TestResubmitUpdates_一部だけ変更した場合(t *testing.T) {
+	current := &models.RingiRequest{Title: "題", Content: "文", Amount: 10000}
+
+	_, changes, err := resubmitUpdates(current, TransitionInput{
+		Title:  ptr("題"),          // 変更なし
+		Amount: ptr(int64(20000)), // 変更あり
+	})
+	if err != nil {
+		t.Fatalf("予期しないエラー: %v", err)
+	}
+	if len(changes) != 1 {
+		t.Fatalf("差分: got %d件, want 1件 (%+v)", len(changes), changes)
+	}
+	if changes[0].Field != models.FieldAmount {
+		t.Errorf("記録された項目: got %q, want %q", changes[0].Field, models.FieldAmount)
+	}
+	if changes[0].Before != "10000" || changes[0].After != "20000" {
+		t.Errorf("金額の差分が不正: %+v", changes[0])
+	}
 }
 
 // --- CreateInput.validate -------------------------------------------------
