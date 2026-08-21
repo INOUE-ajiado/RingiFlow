@@ -54,6 +54,8 @@ func main() {
 		err = listCmd(os.Args[2:])
 	case "setrole":
 		err = setRoleCmd(os.Args[2:])
+	case "setdept":
+		err = setDeptCmd(os.Args[2:])
 	case "passwd":
 		err = passwdCmd(os.Args[2:])
 	case "-h", "--help", "help":
@@ -78,6 +80,7 @@ func usage() {
   useradmin create  -employee <社員ID> -name <氏名> -role <ロール> [-department <所属>] [-password <初期パスワード>]
   useradmin list
   useradmin setrole -employee <社員ID> -role <ロール>
+  useradmin setdept -employee <社員ID> -department <所属>
   useradmin passwd  -employee <社員ID> [-password <新しいパスワード>]
 
 ロール:
@@ -213,7 +216,7 @@ func listCmd(args []string) error {
 	defer iter.Stop()
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "社員ID\t氏名\tロール\tuid")
+	fmt.Fprintln(w, "社員ID\t氏名\t所属\tロール\tuid")
 	count := 0
 	for {
 		snap, err := iter.Next()
@@ -227,7 +230,7 @@ func listCmd(args []string) error {
 		if err := snap.DataTo(&u); err != nil {
 			return err
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", u.EmployeeID, u.Name, u.Role, snap.Ref.ID)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", u.EmployeeID, u.Name, u.Department, u.Role, snap.Ref.ID)
 		count++
 	}
 	if err := w.Flush(); err != nil {
@@ -270,6 +273,41 @@ func setRoleCmd(args []string) error {
 		return err
 	}
 	fmt.Printf("社員ID %s のロールを %s に変更しました\n", *employee, *role)
+	return nil
+}
+
+// setDeptCmd は既存ユーザーの所属部門を変更する。
+// 既に作成済みの稟議に記録された所属は、当時の記録として変更しない。
+func setDeptCmd(args []string) error {
+	fs := flag.NewFlagSet("setdept", flag.ExitOnError)
+	employee := fs.String("employee", "", "社員ID（必須）")
+	department := fs.String("department", "", "新しい所属部門（必須）")
+	projectID := fs.String("project", defaultProjectID, "Firebase プロジェクトID")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *employee == "" || *department == "" {
+		fs.Usage()
+		return errors.New("-employee と -department は必須です")
+	}
+
+	ctx := context.Background()
+	c, closeFn, err := newClients(ctx, *projectID)
+	if err != nil {
+		return err
+	}
+	defer closeFn()
+
+	uid, err := findUIDByEmployeeID(ctx, c, *employee)
+	if err != nil {
+		return err
+	}
+	if _, err := c.fs.Collection("users").Doc(uid).Update(ctx, []firestore.Update{
+		{Path: "department", Value: strings.TrimSpace(*department)},
+	}); err != nil {
+		return err
+	}
+	fmt.Printf("社員ID %s の所属を %s に変更しました\n", *employee, *department)
 	return nil
 }
 

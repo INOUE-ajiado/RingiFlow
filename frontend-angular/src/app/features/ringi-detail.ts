@@ -25,6 +25,18 @@ import { ActionDialog } from '../shared/action-dialog';
 import { Icon } from '../shared/icon';
 import { StatusBadge } from '../shared/status-badge';
 
+/** 承認印の状態。 */
+type StampState = 'approved' | 'current' | 'pending';
+
+/** 承認印1枠の表示内容。 */
+interface Stamp {
+  status: RingiStatus;
+  label: string;
+  state: StampState;
+  /** 承認済のときの承認者名。 */
+  actor: string;
+}
+
 /**
  * 稟議の詳細と承認履歴を表示する。
  * 実行可能な操作は現在のステータスとログインユーザーのロールから判定して動的に表示する
@@ -50,121 +62,183 @@ import { StatusBadge } from '../shared/status-badge';
         <p class="error-message">{{ loadError() }}</p>
       </div>
     } @else if (request(); as req) {
-      <article class="card panel">
-        <header>
-          <div class="head-row">
-            <span class="request-no">{{ req.requestNo }}</span>
-            <app-status-badge [status]="req.status" />
+      <article class="card sheet">
+        <!-- 表紙: 稟議書のヘッダー -->
+        <header class="sheet-head">
+          <div class="head-main">
+            <div class="title-block">
+              <h1>稟議書</h1>
+              <p class="head-en">APPROVAL REQUEST FORM</p>
+            </div>
+            <dl class="head-dates">
+              <div>
+                <dt>起案日</dt>
+                <dd>{{ req.createdAt | date: 'yyyy年M月d日' }}</dd>
+              </div>
+              @if (req.dueDate) {
+                <div>
+                  <dt>決裁希望日</dt>
+                  <dd>{{ req.dueDate | date: 'yyyy年M月d日' }}</dd>
+                </div>
+              }
+            </dl>
           </div>
-          <h1>{{ req.title }}</h1>
+          <div class="head-rule"></div>
         </header>
 
-        <dl class="meta">
-          <div>
-            <dt>申請者</dt>
-            <dd>{{ req.applicantName }}（{{ req.applicantEmployeeId }}）</dd>
-          </div>
-          <div>
-            <dt>金額</dt>
-            <dd class="amount">{{ req.amount | currency: 'JPY' : 'symbol' : '1.0-0' }}</dd>
-          </div>
-          <div>
-            <dt>申請日時</dt>
-            <dd>{{ req.createdAt | date: 'yyyy/MM/dd HH:mm' }}</dd>
-          </div>
-          <div>
-            <dt>最終更新</dt>
-            <dd>{{ req.updatedAt | date: 'yyyy/MM/dd HH:mm' }}</dd>
-          </div>
-        </dl>
+        <div class="sheet-body">
+          <!-- 起案者情報と承認印 -->
+          <div class="applicant-row">
+            <dl class="applicant">
+              <div>
+                <dt>所属</dt>
+                <dd>{{ req.department || '—' }}</dd>
+              </div>
+              <div>
+                <dt>氏名</dt>
+                <dd>{{ req.applicantName }}（{{ req.applicantEmployeeId }}）</dd>
+              </div>
+              <div>
+                <dt>稟議番号</dt>
+                <dd class="tnum">{{ req.requestNo }}</dd>
+              </div>
+            </dl>
 
-        <section class="route">
-          <h2>承認ルート</h2>
-          <ol class="steps">
-            @for (step of route(); track step.status; let first = $first) {
-              @if (!first) {
-                <li class="sep" aria-hidden="true"><app-icon name="chevron-right" [size]="14" /></li>
+            <!-- 承認印。ルート上の各段階の状態を示す -->
+            <div class="stamps">
+              @for (stamp of stamps(); track stamp.status) {
+                <div class="stamp">
+                  <span class="stamp-label">{{ stamp.label }}</span>
+                  <div class="stamp-mark" [class]="stamp.state">
+                    @switch (stamp.state) {
+                      @case ('approved') {
+                        <app-icon name="check" [size]="18" />
+                        <span class="stamp-name">{{ stamp.actor }}</span>
+                      }
+                      @case ('current') {
+                        <span class="stamp-text">審査中</span>
+                      }
+                      @default {
+                        <span class="stamp-text">未</span>
+                      }
+                    }
+                  </div>
+                </div>
               }
-              <li [class.done]="stepDone(step.status)" [class.current]="req.status === step.status">
-                {{ step.label }}
-              </li>
-            }
-            <li class="sep" aria-hidden="true"><app-icon name="chevron-right" [size]="14" /></li>
-            <li class="final" [class.done]="req.status === 'approved'">
-              @if (req.status === 'approved') {
-                <app-icon name="check" [size]="14" />
-              }
-              決裁完了
-            </li>
-          </ol>
-          @if (routeNote()) {
-            <p class="route-note">{{ routeNote() }}</p>
-          }
-        </section>
+            </div>
+          </div>
 
-        <section class="content">
-          <h2>申請内容</h2>
-          <p>{{ req.content }}</p>
-        </section>
-
-        <section class="attachments">
-          <div class="section-head">
-            <h2><app-icon name="paperclip" [size]="14" />添付ファイル</h2>
-            @if (canEditAttachments()) {
-              <label class="btn btn-secondary upload">
-                {{ uploading() ? 'アップロード中...' : 'ファイルを追加' }}
-                <input
-                  type="file"
-                  hidden
-                  [disabled]="uploading()"
-                  (change)="onFileSelected($event)"
-                />
-              </label>
+          <div class="status-row">
+            <app-status-badge [status]="req.status" />
+            @if (routeNote()) {
+              <span class="route-note">{{ routeNote() }}</span>
             }
           </div>
 
-          @if (attachmentError()) {
-            <p class="error-message">{{ attachmentError() }}</p>
-          }
+          <!-- 件名 -->
+          <section class="block">
+            <h2 class="block-label">件名</h2>
+            <p class="subject">{{ req.title }}</p>
+          </section>
 
-          @if (attachments().length === 0) {
-            <p class="empty">添付ファイルはありません。</p>
-          } @else {
-            <ul class="file-list">
-              @for (file of attachments(); track file.id) {
-                <li>
-                  <button type="button" class="file-name" (click)="download(file)">
-                    {{ file.fileName }}
-                  </button>
-                  <span class="file-meta">
-                    {{ fileSize(file.size) }} ・ {{ file.uploadedByName }} ・
-                    {{ file.uploadedAt | date: 'yyyy/MM/dd HH:mm' }}
-                  </span>
-                  @if (canEditAttachments()) {
-                    <button
-                      type="button"
-                      class="icon-btn icon-btn-danger file-remove"
-                      [attr.aria-label]="file.fileName + ' を削除'"
-                      (click)="removeAttachment(file)"
-                    >
-                      <app-icon name="trash" [size]="16" />
+          <!-- 概要 -->
+          <section class="block">
+            <h2 class="block-label">概要</h2>
+            <table class="summary">
+              <tbody>
+                @if (req.amount > 0 || !summaryItems().length) {
+                  <tr>
+                    <th>金額</th>
+                    <td class="tnum amount">
+                      {{ req.amount | currency: 'JPY' : 'symbol' : '1.0-0' }}
+                    </td>
+                  </tr>
+                }
+                @for (item of summaryItems(); track $index) {
+                  <tr>
+                    <th>{{ item.label }}</th>
+                    <td>{{ item.value }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </section>
+
+          <!-- 申請理由・目的 -->
+          <section class="block">
+            <h2 class="block-label">申請理由・目的</h2>
+            <p class="purpose">{{ req.content }}</p>
+          </section>
+
+          <!-- 添付資料 -->
+          <section class="block">
+            <div class="block-head">
+              <h2 class="block-label">
+                <app-icon name="paperclip" [size]="13" />
+                添付資料・備考
+              </h2>
+              @if (canEditAttachments()) {
+                <label class="btn btn-secondary btn-sm upload">
+                  {{ uploading() ? 'アップロード中...' : 'ファイルを追加' }}
+                  <input
+                    type="file"
+                    hidden
+                    [disabled]="uploading()"
+                    (change)="onFileSelected($event)"
+                  />
+                </label>
+              }
+            </div>
+
+            @if (attachmentError()) {
+              <p class="error-message">{{ attachmentError() }}</p>
+            }
+
+            @if (attachments().length === 0) {
+              <p class="empty">添付資料はありません。</p>
+            } @else {
+              <ul class="file-list">
+                @for (file of attachments(); track file.id) {
+                  <li>
+                    <button type="button" class="file-name" (click)="download(file)">
+                      {{ file.fileName }}
                     </button>
-                  }
-                </li>
-              }
-            </ul>
-          }
-        </section>
+                    <span class="file-meta">
+                      {{ fileSize(file.size) }} ・ {{ file.uploadedByName }}
+                    </span>
+                    @if (canEditAttachments()) {
+                      <button
+                        type="button"
+                        class="icon-btn icon-btn-danger file-remove"
+                        [attr.aria-label]="file.fileName + ' を削除'"
+                        (click)="removeAttachment(file)"
+                      >
+                        <app-icon name="trash" [size]="16" />
+                      </button>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+
+          <p class="closing">以上</p>
+        </div>
 
         @if (actions().length > 0) {
-          <footer class="actions">
+          <footer class="sheet-actions">
             @for (action of actions(); track action) {
               @if (action === 'resubmit') {
                 <a [routerLink]="['/ringi', req.id, 'edit']" class="btn btn-primary">
                   修正して再申請
                 </a>
               } @else {
-                <button type="button" class="btn" [class]="buttonClass(action)" (click)="open(action)">
+                <button
+                  type="button"
+                  class="btn"
+                  [class]="buttonClass(action)"
+                  (click)="open(action)"
+                >
                   {{ label(action) }}
                 </button>
               }
@@ -247,168 +321,289 @@ import { StatusBadge } from '../shared/status-badge';
       }
     }
 
-    .panel {
-      padding: var(--space-5) var(--space-6);
+    /* ==== 稟議書 ==== */
+    .sheet {
+      overflow: hidden;
       margin-bottom: var(--space-4);
     }
 
-    .head-row {
+    .sheet-head {
+      padding: var(--space-6) var(--space-6) 0;
+      background: var(--gray-900);
+      color: var(--gray-0);
+    }
+
+    .head-main {
       display: flex;
-      align-items: center;
-      gap: var(--space-3);
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-5);
       flex-wrap: wrap;
+      padding-bottom: var(--space-4);
     }
 
-    .request-no {
-      font-size: var(--text-xs);
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      color: var(--text-muted);
-      font-variant-numeric: tabular-nums;
+    .title-block h1 {
+      margin: 0;
+      font-size: var(--text-2xl);
+      letter-spacing: 0.35em;
+      color: var(--gray-0);
     }
 
-    header h1 {
-      margin: var(--space-3) 0 0;
-      font-size: var(--text-xl);
+    .head-en {
+      margin: var(--space-1) 0 0;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      color: var(--gray-400);
     }
 
-    /* --- 属性 --- */
-    .meta {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-      gap: var(--space-4) var(--space-5);
-      margin: var(--space-5) 0;
-      padding: var(--space-4) 0;
-      border-top: 1px solid var(--border-subtle);
-      border-bottom: 1px solid var(--border-subtle);
+    .head-dates {
+      display: flex;
+      gap: var(--space-5);
+      margin: 0;
+      text-align: right;
     }
 
-    .meta div {
+    .head-dates div {
       margin: 0;
     }
 
-    dt {
-      font-size: var(--text-xs);
-      font-weight: 600;
-      color: var(--text-muted);
-      margin-bottom: var(--space-1);
+    .head-dates dt {
+      font-size: 10px;
+      color: var(--gray-400);
+      margin-bottom: 2px;
     }
 
-    dd {
+    .head-dates dd {
+      margin: 0;
+      font-size: var(--text-sm);
+      color: var(--gray-0);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* 見出し下のアクセント線 */
+    .head-rule {
+      height: 4px;
+      width: 5rem;
+      background: var(--accent);
+      border-radius: 2px 2px 0 0;
+    }
+
+    .sheet-body {
+      padding: var(--space-6);
+    }
+
+    /* ==== 起案者と承認印 ==== */
+    .applicant-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-5);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-5);
+    }
+
+    .applicant {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      min-width: 16rem;
+      flex: 1 1 16rem;
+    }
+
+    .applicant div {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-3);
+      margin: 0;
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .applicant dt {
+      flex: none;
+      width: 5rem;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .applicant dd {
       margin: 0;
       font-size: var(--text-base);
       font-weight: 600;
       color: var(--text-strong);
     }
 
-    .amount {
-      font-variant-numeric: tabular-nums;
-      font-size: var(--text-lg);
+    /* 承認印。丸枠で押印欄を模す */
+    .stamps {
+      display: flex;
+      gap: var(--space-3);
     }
 
-    /* --- 節見出し --- */
-    .content h2,
-    .history h2,
-    .attachments h2,
-    .route h2 {
+    .stamp {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: var(--space-2);
-      font-size: var(--text-sm);
+      gap: var(--space-1);
+    }
+
+    .stamp-label {
+      font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.02em;
       color: var(--text-muted);
-      margin: 0 0 var(--space-3);
     }
 
-    /* --- 承認ルート --- */
-    .route {
-      margin-bottom: var(--space-5);
-    }
-
-    .steps {
-      list-style: none;
+    .stamp-mark {
+      width: 3.5rem;
+      height: 3.5rem;
+      border-radius: 50%;
+      border: 1px dashed var(--border);
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
       align-items: center;
-      gap: var(--space-2);
-      margin: 0;
-      padding: 0;
-    }
-
-    .steps li {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      padding: 0.3rem 0.85rem;
-      border-radius: var(--radius-full);
-      border: 1px solid var(--border-subtle);
-      background: var(--bg-inset);
-      font-size: var(--text-xs);
-      font-weight: 600;
-      color: var(--text-muted);
-    }
-
-    /* ステップ間の区切り。枠を持たない矢印だけの項目 */
-    .steps li.sep {
-      padding: 0;
-      border: none;
-      background: none;
+      justify-content: center;
+      gap: 1px;
       color: var(--text-faint);
+      background: var(--bg-subtle);
     }
 
-    .steps li.done {
+    .stamp-mark.approved {
+      border-style: solid;
+      border-color: var(--success-600);
+      color: var(--success-600);
       background: var(--success-50);
-      border-color: var(--success-200);
-      color: var(--success-700);
     }
 
-    .steps li.current {
-      background: var(--accent);
+    .stamp-mark.current {
       border-color: var(--accent);
-      color: var(--text-on-accent);
-      box-shadow: var(--shadow-xs);
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .stamp-text {
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .stamp-name {
+      font-size: 9px;
+      font-weight: 700;
+      max-width: 3rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      padding: var(--space-3) 0;
+      margin-bottom: var(--space-5);
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
     }
 
     .route-note {
-      margin: var(--space-3) 0 0;
       font-size: var(--text-xs);
       color: var(--text-muted);
     }
 
-    /* --- 申請内容 --- */
-    .content p {
-      margin: 0;
-      white-space: pre-wrap;
-      line-height: 1.9;
-      color: var(--text-body);
+    /* ==== 各ブロック ==== */
+    .block {
+      margin-bottom: var(--space-6);
     }
 
-    /* --- 添付ファイル --- */
-    .attachments {
-      margin-top: var(--space-5);
-      padding-top: var(--space-5);
-      border-top: 1px solid var(--border-subtle);
+    .block-label {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin: 0 0 var(--space-3);
+      padding-left: var(--space-3);
+      font-size: var(--text-sm);
+      font-weight: 700;
+      color: var(--text-strong);
+      position: relative;
     }
 
-    .section-head {
+    /* 見出し左の縦棒 */
+    .block-label::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.15em;
+      bottom: 0.15em;
+      width: 3px;
+      border-radius: 2px;
+      background: var(--text-strong);
+    }
+
+    .block-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: var(--space-4);
+      gap: var(--space-3);
       margin-bottom: var(--space-3);
 
-      h2 {
-        margin: 0;
+      .block-label {
+        margin-bottom: 0;
       }
     }
 
-    .upload {
-      cursor: pointer;
-      padding: 0.35rem 0.75rem;
-      font-size: var(--text-xs);
+    .subject {
+      margin: 0;
+      padding-left: var(--space-3);
+      font-size: var(--text-xl);
+      font-weight: 600;
+      line-height: 1.5;
+      color: var(--text-strong);
     }
 
+    /* 概要テーブル */
+    .summary {
+      width: 100%;
+      border-collapse: collapse;
+      border-top: 1px solid var(--border);
+    }
+
+    .summary th {
+      width: 8rem;
+      text-align: left;
+      padding: var(--space-3);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      color: var(--text-muted);
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: top;
+    }
+
+    .summary td {
+      padding: var(--space-3);
+      font-size: var(--text-base);
+      color: var(--text-strong);
+      border-bottom: 1px solid var(--border-subtle);
+      line-height: 1.7;
+    }
+
+    .summary .amount {
+      font-weight: 700;
+    }
+
+    .purpose {
+      margin: 0;
+      padding: var(--space-4) var(--space-5);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      white-space: pre-wrap;
+      line-height: 2;
+      color: var(--text-body);
+    }
+
+    /* 添付資料 */
     .file-list {
       list-style: none;
       margin: 0;
@@ -426,7 +621,6 @@ import { StatusBadge } from '../shared/status-badge';
       padding: var(--space-3) var(--space-4);
       background: var(--bg-surface);
       border-bottom: 1px solid var(--border-subtle);
-      transition: background-color var(--duration) var(--ease);
 
       &:last-child {
         border-bottom: none;
@@ -472,18 +666,37 @@ import { StatusBadge } from '../shared/status-badge';
       font-size: var(--text-sm);
     }
 
-    /* --- 操作 --- */
-    .actions {
+    .closing {
+      margin: var(--space-6) 0 0;
+      text-align: center;
+      font-size: var(--text-xs);
+      letter-spacing: 0.5em;
+      color: var(--text-faint);
+    }
+
+    /* ==== 操作 ==== */
+    .sheet-actions {
       display: flex;
       flex-wrap: wrap;
       gap: var(--space-2);
       justify-content: flex-end;
-      margin-top: var(--space-5);
-      padding-top: var(--space-4);
+      padding: var(--space-4) var(--space-6);
+      background: var(--bg-subtle);
       border-top: 1px solid var(--border-subtle);
     }
 
-    /* --- 承認履歴 --- */
+    /* ==== 承認履歴 ==== */
+    .panel {
+      padding: var(--space-5) var(--space-6);
+    }
+
+    .history h2 {
+      font-size: var(--text-sm);
+      font-weight: 700;
+      color: var(--text-muted);
+      margin: 0 0 var(--space-4);
+    }
+
     .timeline {
       list-style: none;
       margin: 0;
@@ -498,10 +711,8 @@ import { StatusBadge } from '../shared/status-badge';
       &:last-child {
         padding-bottom: 0;
       }
-
     }
 
-    /* 履歴の点。最新だけ塗りつぶし、それ以外は枠のみ */
     .pip {
       position: absolute;
       left: calc(var(--space-5) * -1 - 7px);
@@ -540,7 +751,18 @@ import { StatusBadge } from '../shared/status-badge';
       margin-left: auto;
     }
 
-    /* 再申請の変更差分。何が直ったかを履歴だけで追えるようにする */
+    .comment {
+      margin: var(--space-2) 0 0;
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-inset);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-sm);
+      line-height: 1.75;
+      white-space: pre-wrap;
+      color: var(--text-body);
+    }
+
+    /* 再申請の変更差分 */
     .changes {
       list-style: none;
       margin: var(--space-2) 0 0;
@@ -585,30 +807,32 @@ import { StatusBadge } from '../shared/status-badge';
       word-break: break-word;
     }
 
-    .comment {
-      margin: var(--space-2) 0 0;
-      padding: var(--space-3) var(--space-4);
-      background: var(--bg-inset);
-      border-radius: var(--radius-sm);
-      font-size: var(--text-sm);
-      line-height: 1.75;
-      white-space: pre-wrap;
-      color: var(--text-body);
-    }
-
-    @media (max-width: 40rem) {
+    @media (max-width: 44rem) {
+      .sheet-head,
+      .sheet-body,
+      .sheet-actions,
       .panel {
-        padding: var(--space-4);
+        padding-left: var(--space-4);
+        padding-right: var(--space-4);
+      }
+
+      .head-dates {
+        text-align: left;
+      }
+
+      .stamps {
+        width: 100%;
       }
 
       time {
         margin-left: 0;
       }
 
-      .actions .btn {
+      .sheet-actions .btn {
         flex: 1 1 auto;
       }
-    }  `,
+    }
+  `,
 })
 export class RingiDetailComponent {
   private readonly ringi = inject(RingiService);
@@ -629,6 +853,37 @@ export class RingiDetailComponent {
   readonly attachmentError = signal<string | null>(null);
 
   readonly attachments = computed(() => this.request()?.attachments ?? []);
+
+  readonly summaryItems = computed(() => this.request()?.summary ?? []);
+
+  /**
+   * 承認印の状態。金額に応じたルート（3.6節）の各段階を、
+   * 現在のステータスと承認履歴から「承認済 / 審査中 / 未」に振り分ける。
+   *
+   * 承認者名は監査ログから引く。ルート上の段階と履歴の承認操作は
+   * 順番に対応するため、n段目の承認は n 番目の approve に当たる。
+   */
+  readonly stamps = computed<Stamp[]>(() => {
+    const req = this.request();
+    const steps = this.route();
+    if (!req) return [];
+
+    // 履歴は新しい順なので、古い順に直してから承認だけを取り出す
+    const approvals = [...this.history()]
+      .reverse()
+      .filter((log) => log.action === 'approve');
+
+    return steps.map((step, index) => {
+      const approval = approvals[index];
+      let state: StampState = 'pending';
+      if (approval) {
+        state = 'approved';
+      } else if (req.status === step.status) {
+        state = 'current';
+      }
+      return { status: step.status, label: step.label, state, actor: approval?.actorName ?? '' };
+    });
+  });
 
   /**
    * 金額に応じた承認ルート。閾値はサーバーから配られた設定値を用いる。
