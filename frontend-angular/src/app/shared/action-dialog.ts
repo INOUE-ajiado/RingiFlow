@@ -55,53 +55,72 @@ import { ACTION_LABELS, COMMENT_REQUIRED, RingiAction } from '../core/models';
     .overlay {
       position: fixed;
       inset: 0;
-      background: rgba(15, 23, 42, 0.45);
+      background: rgba(19, 26, 34, 0.5);
+      backdrop-filter: blur(2px);
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 1rem;
+      padding: var(--space-4);
       z-index: 50;
+      animation: fade-in 140ms var(--ease);
+    }
+
+    @keyframes fade-in {
+      from {
+        opacity: 0;
+      }
     }
 
     .dialog {
       width: 100%;
-      max-width: 32rem;
-      padding: 1.75rem;
+      max-width: 30rem;
+      padding: var(--space-5) var(--space-5) var(--space-4);
+      box-shadow: var(--shadow-lg);
+      animation: rise 180ms var(--ease);
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.98);
+      }
     }
 
     h2 {
-      margin: 0 0 1.25rem;
-      font-size: 1.2rem;
+      margin: 0 0 var(--space-4);
+      font-size: var(--text-lg);
     }
 
     .required,
     .optional {
-      margin-left: 0.4rem;
-      font-size: 0.75rem;
-      padding: 0.1rem 0.4rem;
-      border-radius: 4px;
+      margin-left: var(--space-2);
+      font-size: var(--text-xs);
+      padding: 0.05rem 0.4rem;
+      border-radius: var(--radius-sm);
       font-weight: 600;
     }
 
     .required {
-      background: var(--danger-bg);
-      color: var(--danger);
+      background: var(--danger-50);
+      color: var(--danger-700);
     }
 
     .optional {
-      background: var(--bg-page);
+      background: var(--bg-inset);
       color: var(--text-muted);
     }
 
     .error-message {
-      margin-top: 1rem;
+      margin: var(--space-4) 0 0;
     }
 
     .actions {
       display: flex;
       justify-content: flex-end;
-      gap: 0.65rem;
-      margin-top: 1.5rem;
+      gap: var(--space-2);
+      margin-top: var(--space-5);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--border-subtle);
     }
   `,
 })

@@ -17,15 +17,15 @@ import { RingiService, apiErrorMessage } from '../core/ringi.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, RouterLink],
   template: `
-    <div class="head">
+    <div class="page-head">
       <h1>{{ isResubmit() ? '稟議の修正・再申請' : '新規稟議申請' }}</h1>
       <a [routerLink]="backLink()" class="btn btn-secondary">キャンセル</a>
     </div>
 
     @if (isResubmit()) {
-      <div class="notice">
+      <p class="notice notice-warning resubmit-notice">
         この稟議は差し戻されています。内容を修正して再申請すると、システム担当の承認待ちから再度審査されます。
-      </div>
+      </p>
     }
 
     @if (loading()) {
@@ -91,60 +91,72 @@ import { RingiService, apiErrorMessage } from '../core/ringi.service';
     }
   `,
   styles: `
-    .head {
+    .page-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 1rem;
-      margin-bottom: 1.5rem;
+      gap: var(--space-4);
+      margin-bottom: var(--space-5);
     }
 
     h1 {
       margin: 0;
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
     }
 
-    .notice {
-      background: var(--warning-bg);
-      border-left: 3px solid var(--warning);
-      color: #92400e;
-      padding: 0.85rem 1rem;
-      border-radius: 0 8px 8px 0;
-      font-size: 0.9rem;
-      margin-bottom: 1.25rem;
+    .resubmit-notice {
+      margin-bottom: var(--space-4);
     }
 
     .panel {
-      padding: 1.75rem;
+      padding: var(--space-6);
     }
 
     .field {
-      margin-bottom: 1.35rem;
+      margin-bottom: var(--space-5);
+
+      &:last-of-type {
+        margin-bottom: 0;
+      }
     }
 
     .required {
-      margin-left: 0.4rem;
-      font-size: 0.72rem;
-      padding: 0.1rem 0.4rem;
-      border-radius: 4px;
-      background: var(--danger-bg);
-      color: var(--danger);
+      margin-left: var(--space-2);
+      font-size: var(--text-xs);
+      padding: 0.05rem 0.4rem;
+      border-radius: var(--radius-sm);
+      background: var(--danger-50);
+      color: var(--danger-700);
       font-weight: 600;
     }
 
     .route-hint {
-      margin: 0.4rem 0 0;
-      font-size: 0.82rem;
+      margin: var(--space-2) 0 0;
+      font-size: var(--text-xs);
       color: var(--text-muted);
     }
 
     .error-message {
-      margin-bottom: 1rem;
+      margin: var(--space-5) 0 0;
     }
 
     .actions {
       display: flex;
       justify-content: flex-end;
+      gap: var(--space-2);
+      margin-top: var(--space-6);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    @media (max-width: 40rem) {
+      .panel {
+        padding: var(--space-4);
+      }
+
+      .actions .btn {
+        flex: 1 1 auto;
+      }
     }
   `,
 })

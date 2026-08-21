@@ -31,9 +31,7 @@ import { StatusBadge } from '../shared/status-badge';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, DatePipe, CurrencyPipe, StatusBadge, ActionDialog],
   template: `
-    <div class="head">
-      <a routerLink="/ringi" class="back">← 一覧へ戻る</a>
-    </div>
+    <a routerLink="/ringi" class="back">← 一覧へ戻る</a>
 
     @if (loading()) {
       <div class="empty-state">読み込み中...</div>
@@ -185,51 +183,55 @@ import { StatusBadge } from '../shared/status-badge';
     }
   `,
   styles: `
-    .head {
-      margin-bottom: 1rem;
-    }
-
     .back {
-      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-4);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--text-muted);
       text-decoration: none;
 
       &:hover {
-        text-decoration: underline;
+        color: var(--accent);
       }
     }
 
     .panel {
-      padding: 1.75rem;
-      margin-bottom: 1.25rem;
+      padding: var(--space-5) var(--space-6);
+      margin-bottom: var(--space-4);
     }
 
     .head-row {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: var(--space-3);
       flex-wrap: wrap;
     }
 
     .request-no {
-      font-size: 0.85rem;
-      font-weight: 600;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.04em;
       color: var(--text-muted);
       font-variant-numeric: tabular-nums;
     }
 
     header h1 {
-      margin: 0.6rem 0 0;
-      font-size: 1.4rem;
+      margin: var(--space-3) 0 0;
+      font-size: var(--text-xl);
     }
 
+    /* --- 属性 --- */
     .meta {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-      gap: 1rem 1.5rem;
-      margin: 1.5rem 0;
-      padding: 1.15rem 0;
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
+      grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+      gap: var(--space-4) var(--space-5);
+      margin: var(--space-5) 0;
+      padding: var(--space-4) 0;
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
     }
 
     .meta div {
@@ -237,32 +239,39 @@ import { StatusBadge } from '../shared/status-badge';
     }
 
     dt {
-      font-size: 0.78rem;
+      font-size: var(--text-xs);
+      font-weight: 600;
       color: var(--text-muted);
-      margin-bottom: 0.2rem;
+      margin-bottom: var(--space-1);
     }
 
     dd {
       margin: 0;
-      font-size: 0.95rem;
-      font-weight: 500;
-      color: var(--text-heading);
+      font-size: var(--text-base);
+      font-weight: 600;
+      color: var(--text-strong);
     }
 
     .amount {
       font-variant-numeric: tabular-nums;
+      font-size: var(--text-lg);
     }
 
+    /* --- 節見出し --- */
     .content h2,
     .history h2,
     .attachments h2,
     .route h2 {
-      font-size: 1rem;
-      margin: 0 0 0.75rem;
+      font-size: var(--text-sm);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--text-muted);
+      margin: 0 0 var(--space-3);
     }
 
+    /* --- 承認ルート --- */
     .route {
-      margin-top: 1.5rem;
+      margin-bottom: var(--space-5);
     }
 
     .steps {
@@ -270,60 +279,73 @@ import { StatusBadge } from '../shared/status-badge';
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--space-2);
       margin: 0;
       padding: 0;
     }
 
     .steps li {
-      position: relative;
-      padding: 0.3rem 0.8rem;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: var(--bg-page);
-      font-size: 0.82rem;
-      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.85rem;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-inset);
+      font-size: var(--text-xs);
+      font-weight: 600;
       color: var(--text-muted);
     }
 
     .steps li + li::before {
-      content: '→';
-      margin-right: 0.5rem;
-      margin-left: -0.35rem;
-      color: var(--text-muted);
+      content: '';
+      width: 0.9rem;
+      height: 1px;
+      background: var(--border);
+      margin-left: -0.75rem;
+      margin-right: 0.15rem;
     }
 
     .steps li.done {
-      background: var(--success-bg);
-      border-color: var(--success);
-      color: var(--success);
+      background: var(--success-50);
+      border-color: var(--success-200);
+      color: var(--success-700);
     }
 
     .steps li.current {
-      background: var(--primary);
-      border-color: var(--primary);
-      color: #fff;
-      font-weight: 600;
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--text-on-accent);
+      box-shadow: var(--shadow-xs);
     }
 
     .route-note {
-      margin: 0.6rem 0 0;
-      font-size: 0.82rem;
+      margin: var(--space-3) 0 0;
+      font-size: var(--text-xs);
       color: var(--text-muted);
     }
 
+    /* --- 申請内容 --- */
+    .content p {
+      margin: 0;
+      white-space: pre-wrap;
+      line-height: 1.9;
+      color: var(--text-body);
+    }
+
+    /* --- 添付ファイル --- */
     .attachments {
-      margin-top: 1.75rem;
-      padding-top: 1.5rem;
-      border-top: 1px solid var(--border);
+      margin-top: var(--space-5);
+      padding-top: var(--space-5);
+      border-top: 1px solid var(--border-subtle);
     }
 
     .section-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 1rem;
-      margin-bottom: 0.75rem;
+      gap: var(--space-4);
+      margin-bottom: var(--space-3);
 
       h2 {
         margin: 0;
@@ -332,26 +354,35 @@ import { StatusBadge } from '../shared/status-badge';
 
     .upload {
       cursor: pointer;
-      font-size: 0.85rem;
-      padding: 0.45rem 0.9rem;
+      padding: 0.35rem 0.75rem;
+      font-size: var(--text-xs);
     }
 
     .file-list {
       list-style: none;
       margin: 0;
       padding: 0;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
     }
 
     .file-list li {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       flex-wrap: wrap;
-      gap: 0.6rem;
-      padding: 0.6rem 0;
-      border-bottom: 1px solid var(--border);
+      gap: var(--space-1) var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      transition: background-color var(--duration) var(--ease);
 
       &:last-child {
         border-bottom: none;
+      }
+
+      &:hover {
+        background: var(--bg-subtle);
       }
     }
 
@@ -360,9 +391,9 @@ import { StatusBadge } from '../shared/status-badge';
       border: none;
       padding: 0;
       font-family: inherit;
-      font-size: 0.95rem;
-      font-weight: 500;
-      color: var(--primary);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--accent);
       cursor: pointer;
       text-align: left;
 
@@ -372,7 +403,7 @@ import { StatusBadge } from '../shared/status-badge';
     }
 
     .file-meta {
-      font-size: 0.8rem;
+      font-size: var(--text-xs);
       color: var(--text-muted);
     }
 
@@ -380,49 +411,55 @@ import { StatusBadge } from '../shared/status-badge';
       margin-left: auto;
       background: none;
       border: none;
-      padding: 0.15rem 0.4rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-sm);
       font-family: inherit;
-      font-size: 0.82rem;
-      color: var(--danger);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: var(--text-muted);
       cursor: pointer;
+      transition:
+        background-color var(--duration) var(--ease),
+        color var(--duration) var(--ease);
 
       &:hover {
-        text-decoration: underline;
+        background: var(--danger-50);
+        color: var(--danger-700);
       }
     }
 
-    .content p {
+    .empty {
       margin: 0;
-      white-space: pre-wrap;
-      line-height: 1.9;
+      padding: var(--space-4);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-sm);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: var(--text-sm);
     }
 
+    /* --- 操作 --- */
     .actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.65rem;
+      gap: var(--space-2);
       justify-content: flex-end;
-      margin-top: 1.75rem;
-      padding-top: 1.5rem;
-      border-top: 1px solid var(--border);
+      margin-top: var(--space-5);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--border-subtle);
     }
 
-    .empty {
-      color: var(--text-muted);
-      font-size: 0.9rem;
-      margin: 0;
-    }
-
+    /* --- 承認履歴 --- */
     .timeline {
       list-style: none;
       margin: 0;
-      padding: 0 0 0 1.15rem;
-      border-left: 2px solid var(--border);
+      padding: 0 0 0 var(--space-5);
+      border-left: 2px solid var(--border-subtle);
     }
 
     .timeline li {
       position: relative;
-      padding-bottom: 1.35rem;
+      padding-bottom: var(--space-5);
 
       &:last-child {
         padding-bottom: 0;
@@ -431,13 +468,18 @@ import { StatusBadge } from '../shared/status-badge';
       &::before {
         content: '';
         position: absolute;
-        left: -1.55rem;
-        top: 0.5rem;
+        left: calc(var(--space-5) * -1 - 5px);
+        top: 0.45rem;
         width: 10px;
         height: 10px;
         border-radius: 50%;
         background: var(--bg-surface);
-        border: 3px solid var(--primary);
+        border: 2px solid var(--border);
+      }
+
+      &:first-child::before {
+        border-color: var(--accent);
+        background: var(--accent);
       }
     }
 
@@ -445,33 +487,51 @@ import { StatusBadge } from '../shared/status-badge';
       display: flex;
       flex-wrap: wrap;
       align-items: baseline;
-      gap: 0.65rem;
+      gap: var(--space-2) var(--space-3);
     }
 
     .action {
+      font-size: var(--text-sm);
       font-weight: 700;
-      color: var(--primary);
+      color: var(--text-strong);
     }
 
     .actor {
-      font-size: 0.9rem;
+      font-size: var(--text-sm);
+      color: var(--text-body);
     }
 
     time {
-      font-size: 0.8rem;
+      font-size: var(--text-xs);
       color: var(--text-muted);
       font-variant-numeric: tabular-nums;
+      margin-left: auto;
     }
 
     .comment {
-      margin: 0.4rem 0 0;
-      padding: 0.6rem 0.85rem;
-      background: var(--bg-page);
-      border-radius: 8px;
-      font-size: 0.9rem;
+      margin: var(--space-2) 0 0;
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-inset);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-sm);
+      line-height: 1.75;
       white-space: pre-wrap;
+      color: var(--text-body);
     }
-  `,
+
+    @media (max-width: 40rem) {
+      .panel {
+        padding: var(--space-4);
+      }
+
+      time {
+        margin-left: 0;
+      }
+
+      .actions .btn {
+        flex: 1 1 auto;
+      }
+    }  `,
 })
 export class RingiDetailComponent {
   private readonly ringi = inject(RingiService);

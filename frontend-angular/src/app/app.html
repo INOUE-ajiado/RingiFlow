@@ -1,7 +1,10 @@
 @if (user(); as currentUser) {
   <header class="app-header">
     <div class="inner">
-      <a routerLink="/ringi" class="brand">RingiFlow</a>
+      <a routerLink="/ringi" class="brand">
+        <span class="brand-mark" aria-hidden="true">R</span>
+        <span class="brand-name">RingiFlow</span>
+      </a>
       <div class="user">
         <span class="name">{{ currentUser.name }}</span>
         <span class="role">{{ roleLabel() }}</span>
@@ -12,7 +15,10 @@
 
 <main [class.with-header]="!!user()">
   @if (!ready()) {
-    <div class="booting">読み込み中...</div>
+    <div class="booting">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>読み込んでいます...</p>
+    </div>
   } @else if (error()) {
     <div class="boot-error card">
       <h1>起動できませんでした</h1>

@@ -32,12 +32,15 @@ const FILTERABLE_STATUSES: RingiStatus[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, FormsModule, DatePipe, CurrencyPipe, StatusBadge],
   template: `
-    <div class="head">
+    <div class="page-head">
       <div>
         <h1>稟議一覧</h1>
         <p class="subtitle">{{ subtitle() }}</p>
       </div>
-      <a routerLink="/ringi/new" class="btn btn-primary">新規申請</a>
+      <a routerLink="/ringi/new" class="btn btn-primary">
+        <span class="plus" aria-hidden="true">＋</span>
+        新規申請
+      </a>
     </div>
 
     <div class="tabs" role="tablist">
@@ -55,9 +58,9 @@ const FILTERABLE_STATUSES: RingiStatus[] = [
       }
     </div>
 
-    <div class="card filters">
-      <div class="filter-row">
-        <div class="field grow">
+    <section class="card filters">
+      <div class="filter-grid">
+        <div class="field keyword">
           <label for="keyword">キーワード</label>
           <input
             id="keyword"
@@ -77,7 +80,7 @@ const FILTERABLE_STATUSES: RingiStatus[] = [
         </div>
       </div>
 
-      <div class="field">
+      <div class="field statuses">
         <label>ステータス</label>
         <div class="chips">
           @for (status of filterableStatuses; track status) {
@@ -96,28 +99,48 @@ const FILTERABLE_STATUSES: RingiStatus[] = [
 
       <div class="filter-actions">
         @if (hasActiveFilter()) {
-          <button type="button" class="btn btn-secondary" (click)="clear()">条件をクリア</button>
+          <button type="button" class="btn btn-ghost" (click)="clear()">条件をクリア</button>
         }
         <button type="button" class="btn btn-primary" (click)="search()" [disabled]="loading()">
           {{ loading() ? '検索中...' : '検索' }}
         </button>
       </div>
-    </div>
+    </section>
 
     @if (error()) {
       <p class="error-message">{{ error() }}</p>
     }
 
     @if (truncated()) {
-      <p class="notice-warning">
+      <p class="notice notice-warning">
         キーワード検索の走査上限に達しました。すべての該当稟議を調べきれていない可能性があります。期間やステータスで絞り込むと確実です。
       </p>
     }
 
     @if (loading() && items().length === 0) {
-      <div class="empty-state">読み込み中...</div>
+      <div class="card table-wrap" aria-busy="true" aria-label="読み込み中">
+        <div class="skeleton-list">
+          @for (row of skeletonRows; track row) {
+            <div class="skeleton-row">
+              <div class="skeleton" style="width: 6rem; height: 0.9rem"></div>
+              <div class="skeleton" style="width: 7rem; height: 1.3rem; border-radius: 999px"></div>
+              <div class="skeleton" style="flex: 1; height: 0.9rem"></div>
+              <div class="skeleton" style="width: 5rem; height: 0.9rem"></div>
+            </div>
+          }
+        </div>
+      </div>
     } @else if (items().length === 0) {
-      <div class="card empty-state">該当する稟議はありません。</div>
+      <div class="card empty-state">
+        <p class="empty-title">該当する稟議はありません</p>
+        @if (hasActiveFilter()) {
+          <p>絞り込み条件を変更するか、条件をクリアしてください。</p>
+          <button type="button" class="btn btn-secondary" (click)="clear()">条件をクリア</button>
+        } @else {
+          <p>まだ稟議が登録されていません。</p>
+          <a routerLink="/ringi/new" class="btn btn-primary">最初の稟議を申請する</a>
+        }
+      </div>
     } @else {
       <div class="card table-wrap">
         <table>
@@ -134,17 +157,23 @@ const FILTERABLE_STATUSES: RingiStatus[] = [
           <tbody>
             @for (item of items(); track item.id) {
               <tr>
-                <td class="col-no">{{ item.requestNo }}</td>
-                <td><app-status-badge [status]="item.status" /></td>
-                <td>
+                <td class="col-no tnum" data-label="稟議番号">{{ item.requestNo }}</td>
+                <td class="col-status" data-label="ステータス">
+                  <app-status-badge [status]="item.status" />
+                </td>
+                <td data-label="タイトル">
                   <a [routerLink]="['/ringi', item.id]" class="title-link">{{ item.title }}</a>
                 </td>
-                <td class="col-applicant">
-                  {{ item.applicantName }}
+                <td class="col-applicant" data-label="申請者">
+                  <span class="applicant-name">{{ item.applicantName }}</span>
                   <span class="employee-id">{{ item.applicantEmployeeId }}</span>
                 </td>
-                <td class="col-amount">{{ item.amount | currency: 'JPY' : 'symbol' : '1.0-0' }}</td>
-                <td class="col-date">{{ item.createdAt | date: 'yyyy/MM/dd HH:mm' }}</td>
+                <td class="col-amount tnum" data-label="金額">
+                  {{ item.amount | currency: 'JPY' : 'symbol' : '1.0-0' }}
+                </td>
+                <td class="col-date tnum" data-label="申請日時">
+                  {{ item.createdAt | date: 'yyyy/MM/dd HH:mm' }}
+                </td>
               </tr>
             }
           </tbody>
@@ -152,9 +181,16 @@ const FILTERABLE_STATUSES: RingiStatus[] = [
       </div>
 
       <div class="foot">
-        <span class="count">{{ items().length }} 件表示{{ nextCursor() ? '（続きあり）' : '' }}</span>
+        <span class="count">
+          {{ items().length }} 件表示{{ nextCursor() ? '（続きあり）' : '' }}
+        </span>
         @if (nextCursor()) {
-          <button type="button" class="btn btn-secondary" (click)="loadMore()" [disabled]="loading()">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="loadMore()"
+            [disabled]="loading()"
+          >
             {{ loading() ? '読み込み中...' : 'もっと読み込む' }}
           </button>
         }
@@ -162,180 +198,212 @@ const FILTERABLE_STATUSES: RingiStatus[] = [
     }
   `,
   styles: `
-    .head {
+    .page-head {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 1rem;
+      gap: var(--space-4);
       flex-wrap: wrap;
-      margin-bottom: 1.5rem;
+      margin-bottom: var(--space-5);
     }
 
     h1 {
       margin: 0;
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
     }
 
     .subtitle {
-      margin: 0.25rem 0 0;
+      margin: var(--space-1) 0 0;
       color: var(--text-muted);
-      font-size: 0.88rem;
+      font-size: var(--text-sm);
     }
 
+    .plus {
+      font-size: 1em;
+      line-height: 1;
+    }
+
+    /* --- タブ --- */
     .tabs {
       display: flex;
-      gap: 0.35rem;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 1.25rem;
+      gap: var(--space-1);
+      padding: 0.25rem;
+      margin-bottom: var(--space-4);
+      background: var(--bg-inset);
+      border-radius: var(--radius-sm);
+      width: fit-content;
+      max-width: 100%;
+      overflow-x: auto;
     }
 
     .tab {
       background: none;
       border: none;
-      border-bottom: 2px solid transparent;
-      padding: 0.6rem 1rem;
+      border-radius: calc(var(--radius-sm) - 2px);
+      padding: 0.4rem 0.9rem;
       font-family: inherit;
-      font-size: 0.92rem;
+      font-size: var(--text-sm);
       font-weight: 600;
       color: var(--text-muted);
       cursor: pointer;
+      white-space: nowrap;
+      transition:
+        background-color var(--duration) var(--ease),
+        color var(--duration) var(--ease);
+
+      &:hover:not(.active) {
+        color: var(--text-strong);
+      }
 
       &.active {
-        color: var(--primary);
-        border-bottom-color: var(--primary);
+        background: var(--bg-surface);
+        color: var(--text-strong);
+        box-shadow: var(--shadow-xs);
       }
     }
 
+    /* --- 絞り込み --- */
     .filters {
-      padding: 1.15rem 1.25rem;
-      margin-bottom: 1.25rem;
+      padding: var(--space-4) var(--space-5) var(--space-5);
+      margin-bottom: var(--space-4);
     }
 
-    .filter-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.85rem;
-      margin-bottom: 0.85rem;
+    .filter-grid {
+      display: grid;
+      grid-template-columns: minmax(14rem, 2fr) repeat(2, minmax(9rem, 1fr));
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
     }
 
-    .field {
-      min-width: 10rem;
-
-      &.grow {
-        flex: 1 1 16rem;
-      }
-    }
-
-    .field label {
-      font-size: 0.8rem;
+    .statuses {
+      margin-bottom: 0;
     }
 
     .chips {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.4rem;
+      gap: var(--space-2);
     }
 
     .chip {
-      background: var(--bg-page);
+      background: var(--bg-surface);
       border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 0.3rem 0.8rem;
+      border-radius: var(--radius-full);
+      padding: 0.25rem 0.8rem;
       font-family: inherit;
-      font-size: 0.82rem;
-      font-weight: 500;
+      font-size: var(--text-xs);
+      font-weight: 600;
       color: var(--text-muted);
       cursor: pointer;
-      transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+      transition:
+        background-color var(--duration) var(--ease),
+        color var(--duration) var(--ease),
+        border-color var(--duration) var(--ease);
+
+      &:hover:not(.selected) {
+        border-color: var(--gray-400);
+        color: var(--text-strong);
+      }
 
       &.selected {
-        background: var(--primary);
-        border-color: var(--primary);
-        color: #fff;
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--text-on-accent);
       }
     }
 
     .filter-actions {
       display: flex;
       justify-content: flex-end;
-      gap: 0.6rem;
-      margin-top: 1.1rem;
+      gap: var(--space-2);
+      margin-top: var(--space-5);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--border-subtle);
     }
 
-    .error-message,
-    .notice-warning {
-      margin-bottom: 1rem;
+    .notice {
+      margin: 0 0 var(--space-4);
     }
 
-    .notice-warning {
-      background: var(--warning-bg);
-      border-left: 3px solid var(--warning);
-      color: #92400e;
-      padding: 0.7rem 1rem;
-      border-radius: 0 8px 8px 0;
-      font-size: 0.88rem;
-    }
-
+    /* --- 一覧 --- */
     .table-wrap {
       overflow-x: auto;
+      overflow-y: hidden;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.92rem;
     }
 
     th {
       text-align: left;
       font-weight: 600;
-      font-size: 0.82rem;
+      font-size: var(--text-xs);
+      letter-spacing: 0.03em;
       color: var(--text-muted);
-      padding: 0.85rem 1rem;
-      border-bottom: 1px solid var(--border);
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-subtle);
       white-space: nowrap;
     }
 
     td {
-      padding: 0.85rem 1rem;
-      border-bottom: 1px solid var(--border);
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--text-sm);
+      border-bottom: 1px solid var(--border-subtle);
       vertical-align: middle;
     }
 
-    tr:last-child td {
-      border-bottom: none;
+    tbody tr {
+      transition: background-color var(--duration) var(--ease);
+
+      &:hover {
+        background: var(--bg-subtle);
+      }
+
+      &:last-child td {
+        border-bottom: none;
+      }
     }
 
     .title-link {
-      font-weight: 500;
+      font-weight: 600;
+      color: var(--text-strong);
       text-decoration: none;
 
       &:hover {
+        color: var(--accent);
         text-decoration: underline;
       }
     }
 
+    .applicant-name {
+      display: block;
+    }
+
     .employee-id {
       display: block;
-      font-size: 0.78rem;
+      font-size: var(--text-xs);
       color: var(--text-muted);
     }
 
     .col-amount {
       text-align: right;
       white-space: nowrap;
-      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      color: var(--text-strong);
     }
 
     .col-date,
     .col-no {
       white-space: nowrap;
       color: var(--text-muted);
-      font-variant-numeric: tabular-nums;
     }
 
     .col-no {
-      font-size: 0.85rem;
+      font-size: var(--text-xs);
+      font-weight: 600;
     }
 
     .col-status,
@@ -343,17 +411,113 @@ const FILTERABLE_STATUSES: RingiStatus[] = [
       white-space: nowrap;
     }
 
+    /* --- 読み込み中 --- */
+    .skeleton-list {
+      padding: var(--space-2) 0;
+    }
+
+    .skeleton-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--border-subtle);
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+
+    /* --- 空状態 --- */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-3);
+
+      p {
+        margin: 0;
+      }
+    }
+
+    .empty-title {
+      font-size: var(--text-base);
+      font-weight: 600;
+      color: var(--text-strong);
+    }
+
+    /* --- フッター --- */
     .foot {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 1rem;
-      margin-top: 1rem;
+      gap: var(--space-4);
+      margin-top: var(--space-4);
     }
 
     .count {
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       color: var(--text-muted);
+    }
+
+    /* --- 狭い画面: 表を積み重ねカードとして読ませる --- */
+    @media (max-width: 52rem) {
+      .filter-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .table-wrap {
+        border: none;
+        background: none;
+        box-shadow: none;
+        overflow: visible;
+      }
+
+      thead {
+        display: none;
+      }
+
+      tbody tr {
+        display: block;
+        margin-bottom: var(--space-3);
+        padding: var(--space-2) 0;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-sm);
+
+        &:hover {
+          background: var(--bg-surface);
+        }
+      }
+
+      td {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: var(--space-4);
+        border-bottom: none;
+        padding: var(--space-2) var(--space-4);
+        text-align: right;
+
+        &::before {
+          content: attr(data-label);
+          flex: none;
+          font-size: var(--text-xs);
+          font-weight: 600;
+          color: var(--text-muted);
+          text-align: left;
+        }
+      }
+
+      .applicant-name,
+      .employee-id {
+        display: inline;
+      }
+
+      .employee-id::before {
+        content: ' ';
+      }
     }
   `,
 })
@@ -362,6 +526,7 @@ export class RingiDashboardComponent {
   private readonly auth = inject(AuthService);
 
   readonly filterableStatuses = FILTERABLE_STATUSES;
+  readonly skeletonRows = [0, 1, 2, 3, 4];
 
   readonly scope = signal<ListScope>('all');
   readonly items = signal<RingiRequest[]>([]);
