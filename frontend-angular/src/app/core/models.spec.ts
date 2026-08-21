@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { AppUser, RingiRequest, RingiStatus, availableActions, isTerminal } from './models';
+import {
+  AppUser,
+  RingiRequest,
+  RingiStatus,
+  availableActions,
+  canModifyAttachments,
+  formatFileSize,
+  isTerminal,
+} from './models';
 
 function user(role: AppUser['role'], uid = 'u-applicant'): AppUser {
   return { uid, employeeId: 'E0001', name: 'テスト太郎', role };
@@ -17,6 +25,7 @@ function request(status: RingiStatus, applicantId = 'u-applicant'): RingiRequest
     applicantName: 'テスト太郎',
     applicantEmployeeId: 'E0001',
     status,
+    attachments: null,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
   };
@@ -134,5 +143,41 @@ describe('取り下げ', () => {
     const owner = user('applicant', 'u-applicant');
     expect(availableActions(request('withdrawn'), owner)).toEqual([]);
     expect(availableActions(request('withdrawn'), user('master', 'uid-master'))).toEqual([]);
+  });
+});
+
+describe('添付ファイル', () => {
+  it('申請者本人は決裁確定前に変更できる', () => {
+    const owner = user('applicant', 'u-applicant');
+    for (const status of ['pending_system', 'pending_producer', 'pending_ceo', 'returned'] as const) {
+      expect(canModifyAttachments(request(status), owner)).toBe(true);
+    }
+  });
+
+  it('決裁確定後は誰も変更できない', () => {
+    for (const status of ['approved', 'rejected', 'withdrawn'] as const) {
+      expect(canModifyAttachments(request(status), user('applicant', 'u-applicant'))).toBe(false);
+      expect(canModifyAttachments(request(status), user('master', 'uid-master'))).toBe(false);
+    }
+  });
+
+  it('他人は変更できない', () => {
+    expect(canModifyAttachments(request('pending_system'), user('applicant', 'u-other'))).toBe(false);
+    expect(canModifyAttachments(request('pending_system'), user('ceo', 'u-ceo'))).toBe(false);
+  });
+
+  it('マスターは決裁確定前なら変更できる', () => {
+    expect(canModifyAttachments(request('pending_ceo'), user('master', 'uid-master'))).toBe(true);
+  });
+});
+
+describe('formatFileSize', () => {
+  it('単位を切り替えて表示する', () => {
+    expect(formatFileSize(0)).toBe('0 B');
+    expect(formatFileSize(512)).toBe('512 B');
+    expect(formatFileSize(1024)).toBe('1.0 KB');
+    expect(formatFileSize(1536)).toBe('1.5 KB');
+    expect(formatFileSize(1024 * 1024)).toBe('1.0 MB');
+    expect(formatFileSize(10 * 1024 * 1024)).toBe('10.0 MB');
   });
 });

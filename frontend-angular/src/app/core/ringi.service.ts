@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../environments/environment';
-import { AuditLog, RingiAction, RingiRequest, RingiStatus } from './models';
+import { Attachment, AuditLog, RingiAction, RingiRequest, RingiStatus } from './models';
 
 export interface CreateRingiInput {
   title: string;
@@ -87,6 +87,42 @@ export class RingiService {
   /** 承認・差し戻し・却下・再申請・取り下げを実行する。 */
   transition(id: string, action: RingiAction, input: TransitionInput = {}): Promise<void> {
     return firstValueFrom(this.http.post<void>(`${this.base}/${id}/${action}`, input));
+  }
+
+  uploadAttachment(id: string, file: File): Promise<{ attachment: Attachment }> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return firstValueFrom(
+      this.http.post<{ attachment: Attachment }>(`${this.base}/${id}/attachments`, form),
+    );
+  }
+
+  deleteAttachment(id: string, attachmentId: string): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(`${this.base}/${id}/attachments/${attachmentId}`),
+    );
+  }
+
+  /**
+   * 添付ファイルを取得して保存する。
+   *
+   * APIは認証トークンを要求するため、単純なリンクでは取得できない。
+   * 内容を取得したうえで一時的なURLを作り、ダウンロードを発火させる。
+   */
+  async downloadAttachment(id: string, attachment: Attachment): Promise<void> {
+    const blob = await firstValueFrom(
+      this.http.get(`${this.base}/${id}/attachments/${attachment.id}`, { responseType: 'blob' }),
+    );
+    const url = URL.createObjectURL(blob);
+    try {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = attachment.fileName;
+      link.click();
+    } finally {
+      // 発火後すぐに解放するとダウンロードが中断される場合があるため猶予を置く
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
   }
 }
 

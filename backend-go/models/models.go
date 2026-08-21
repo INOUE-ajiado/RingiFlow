@@ -46,6 +46,8 @@ const (
 	ActionReturn   = "return"
 	ActionResubmit = "resubmit"
 	ActionWithdraw = "withdraw"
+	ActionAttach   = "attach"
+	ActionDetach   = "detach"
 )
 
 // User は users コレクションのドキュメント。ドキュメントIDは Firebase Auth の uid。
@@ -61,16 +63,19 @@ type RingiRequest struct {
 	ID string `firestore:"id" json:"id"`
 	// RequestNo は人が読める稟議番号（例: R-2026-0001）。
 	// 申請と同一トランザクション内でカウンタを採番するため重複しない。
-	RequestNo           string    `firestore:"requestNo" json:"requestNo"`
-	Title               string    `firestore:"title" json:"title"`
-	Content             string    `firestore:"content" json:"content"`
-	Amount              int64     `firestore:"amount" json:"amount"`
-	ApplicantID         string    `firestore:"applicantId" json:"applicantId"`
-	ApplicantName       string    `firestore:"applicantName" json:"applicantName"`
-	ApplicantEmployeeID string    `firestore:"applicantEmployeeId" json:"applicantEmployeeId"`
-	Status              string    `firestore:"status" json:"status"`
-	CreatedAt           time.Time `firestore:"createdAt" json:"createdAt"`
-	UpdatedAt           time.Time `firestore:"updatedAt" json:"updatedAt"`
+	RequestNo           string `firestore:"requestNo" json:"requestNo"`
+	Title               string `firestore:"title" json:"title"`
+	Content             string `firestore:"content" json:"content"`
+	Amount              int64  `firestore:"amount" json:"amount"`
+	ApplicantID         string `firestore:"applicantId" json:"applicantId"`
+	ApplicantName       string `firestore:"applicantName" json:"applicantName"`
+	ApplicantEmployeeID string `firestore:"applicantEmployeeId" json:"applicantEmployeeId"`
+	Status              string `firestore:"status" json:"status"`
+	// Attachments は添付ファイルの一覧。実体は Cloud Storage に置き、
+	// ここにはメタデータのみを保持する。
+	Attachments []Attachment `firestore:"attachments" json:"attachments"`
+	CreatedAt   time.Time    `firestore:"createdAt" json:"createdAt"`
+	UpdatedAt   time.Time    `firestore:"updatedAt" json:"updatedAt"`
 }
 
 // AuditLog は audit_logs コレクションのドキュメント。
@@ -167,4 +172,23 @@ func IsValidStatus(status string) bool {
 		return true
 	}
 	return false
+}
+
+// Attachment は稟議に添付されたファイルのメタデータ。
+// 実体は Cloud Storage の StoragePath に置かれる。
+type Attachment struct {
+	ID          string `firestore:"id" json:"id"`
+	FileName    string `firestore:"fileName" json:"fileName"`
+	ContentType string `firestore:"contentType" json:"contentType"`
+	Size        int64  `firestore:"size" json:"size"`
+	// StoragePath は Cloud Storage 上の位置。クライアントへは公開しない。
+	StoragePath    string    `firestore:"storagePath" json:"-"`
+	UploadedBy     string    `firestore:"uploadedBy" json:"uploadedBy"`
+	UploadedByName string    `firestore:"uploadedByName" json:"uploadedByName"`
+	UploadedAt     time.Time `firestore:"uploadedAt" json:"uploadedAt"`
+}
+
+// IsTerminal は決裁が確定し、以降の操作ができないステータスかを判定する。
+func IsTerminal(status string) bool {
+	return status == StatusApproved || status == StatusRejected || status == StatusWithdrawn
 }

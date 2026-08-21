@@ -25,6 +25,20 @@ export type Role = 'applicant' | 'system_admin' | 'producer' | 'ceo' | 'master';
 
 export type RingiAction = 'approve' | 'return' | 'reject' | 'resubmit' | 'withdraw';
 
+/** 監査ログに記録される操作（状態遷移以外も含む）。 */
+export type LogAction = RingiAction | 'create' | 'attach' | 'detach';
+
+/** 添付ファイルのメタデータ。実体は Cloud Storage にあり、APIを経由して取得する。 */
+export interface Attachment {
+  id: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  uploadedBy: string;
+  uploadedByName: string;
+  uploadedAt: string;
+}
+
 export interface AppUser {
   uid: string;
   employeeId: string;
@@ -43,13 +57,14 @@ export interface RingiRequest {
   applicantName: string;
   applicantEmployeeId: string;
   status: RingiStatus;
+  attachments: Attachment[] | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface AuditLog {
   requestId: string;
-  action: RingiAction | 'create';
+  action: LogAction;
   actorId: string;
   actorName: string;
   comment: string;
@@ -74,13 +89,15 @@ export const ROLE_LABELS: Record<Role, string> = {
   master: 'マスター（全権限）',
 };
 
-export const ACTION_LABELS: Record<RingiAction | 'create', string> = {
+export const ACTION_LABELS: Record<LogAction, string> = {
   create: '申請',
   approve: '承認',
   return: '差し戻し',
   reject: '却下',
   resubmit: '再申請',
   withdraw: '取り下げ',
+  attach: 'ファイル添付',
+  detach: 'ファイル削除',
 };
 
 /** 差し戻し・却下は理由コメントの入力が必須（基本設計書 5.1節）。 */
@@ -161,4 +178,18 @@ export function isPending(status: RingiStatus): boolean {
 /** 承認権限を持つロールかどうか（applicant 以外）。 */
 export function hasApprovalRole(role: Role): boolean {
   return role === 'system_admin' || role === 'producer' || role === 'ceo' || role === 'master';
+}
+
+/** 添付ファイルを変更できるか（申請者本人かつ決裁確定前）。 */
+export function canModifyAttachments(request: RingiRequest, user: AppUser): boolean {
+  if (isTerminal(request.status)) return false;
+  if (isMaster(user.role)) return true;
+  return request.applicantId === user.uid;
+}
+
+/** バイト数を人が読める表記へ変換する。 */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

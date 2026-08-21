@@ -5,10 +5,14 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth.service';
 import {
   ACTION_LABELS,
+  Attachment,
   AuditLog,
+  LogAction,
   RingiAction,
   RingiRequest,
   availableActions,
+  canModifyAttachments,
+  formatFileSize,
 } from '../core/models';
 import { RingiService, apiErrorMessage } from '../core/ringi.service';
 import { ActionDialog } from '../shared/action-dialog';
@@ -66,6 +70,50 @@ import { StatusBadge } from '../shared/status-badge';
         <section class="content">
           <h2>申請内容</h2>
           <p>{{ req.content }}</p>
+        </section>
+
+        <section class="attachments">
+          <div class="section-head">
+            <h2>添付ファイル</h2>
+            @if (canEditAttachments()) {
+              <label class="btn btn-secondary upload">
+                {{ uploading() ? 'アップロード中...' : 'ファイルを追加' }}
+                <input
+                  type="file"
+                  hidden
+                  [disabled]="uploading()"
+                  (change)="onFileSelected($event)"
+                />
+              </label>
+            }
+          </div>
+
+          @if (attachmentError()) {
+            <p class="error-message">{{ attachmentError() }}</p>
+          }
+
+          @if (attachments().length === 0) {
+            <p class="empty">添付ファイルはありません。</p>
+          } @else {
+            <ul class="file-list">
+              @for (file of attachments(); track file.id) {
+                <li>
+                  <button type="button" class="file-name" (click)="download(file)">
+                    {{ file.fileName }}
+                  </button>
+                  <span class="file-meta">
+                    {{ fileSize(file.size) }} ・ {{ file.uploadedByName }} ・
+                    {{ file.uploadedAt | date: 'yyyy/MM/dd HH:mm' }}
+                  </span>
+                  @if (canEditAttachments()) {
+                    <button type="button" class="file-remove" (click)="removeAttachment(file)">
+                      削除
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+          }
         </section>
 
         @if (actions().length > 0) {
@@ -188,9 +236,89 @@ import { StatusBadge } from '../shared/status-badge';
     }
 
     .content h2,
-    .history h2 {
+    .history h2,
+    .attachments h2 {
       font-size: 1rem;
       margin: 0 0 0.75rem;
+    }
+
+    .attachments {
+      margin-top: 1.75rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+
+      h2 {
+        margin: 0;
+      }
+    }
+
+    .upload {
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 0.45rem 0.9rem;
+    }
+
+    .file-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .file-list li {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid var(--border);
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+
+    .file-name {
+      background: none;
+      border: none;
+      padding: 0;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--primary);
+      cursor: pointer;
+      text-align: left;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
+    .file-meta {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .file-remove {
+      margin-left: auto;
+      background: none;
+      border: none;
+      padding: 0.15rem 0.4rem;
+      font-family: inherit;
+      font-size: 0.82rem;
+      color: var(--danger);
+      cursor: pointer;
+
+      &:hover {
+        text-decoration: underline;
+      }
     }
 
     .content p {
@@ -290,6 +418,18 @@ export class RingiDetailComponent {
   readonly busy = signal(false);
   readonly actionError = signal<string | null>(null);
 
+  readonly uploading = signal(false);
+  readonly attachmentError = signal<string | null>(null);
+
+  readonly attachments = computed(() => this.request()?.attachments ?? []);
+
+  /** 添付の追加・削除が可能か（申請者本人かつ決裁確定前）。 */
+  readonly canEditAttachments = computed(() => {
+    const req = this.request();
+    const user = this.auth.appUser();
+    return !!req && !!user && canModifyAttachments(req, user);
+  });
+
   /** 現在のステータスとロールから実行可能な操作を求める。 */
   readonly actions = computed(() => {
     const req = this.request();
@@ -301,8 +441,53 @@ export class RingiDetailComponent {
     queueMicrotask(() => void this.load());
   }
 
-  label(action: RingiAction | 'create'): string {
+  label(action: LogAction): string {
     return ACTION_LABELS[action];
+  }
+
+  fileSize(bytes: number): string {
+    return formatFileSize(bytes);
+  }
+
+  /** ファイル選択ダイアログで選ばれたファイルを添付する。 */
+  async onFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // 同じファイルを続けて選べるよう、値を毎回クリアする
+    input.value = '';
+    if (!file) return;
+
+    this.uploading.set(true);
+    this.attachmentError.set(null);
+    try {
+      await this.ringi.uploadAttachment(this.id(), file);
+      await this.load();
+    } catch (err) {
+      this.attachmentError.set(apiErrorMessage(err));
+    } finally {
+      this.uploading.set(false);
+    }
+  }
+
+  async download(attachment: Attachment): Promise<void> {
+    this.attachmentError.set(null);
+    try {
+      await this.ringi.downloadAttachment(this.id(), attachment);
+    } catch {
+      this.attachmentError.set('ファイルの取得に失敗しました。');
+    }
+  }
+
+  async removeAttachment(attachment: Attachment): Promise<void> {
+    if (!confirm(`「${attachment.fileName}」を削除します。よろしいですか？`)) return;
+
+    this.attachmentError.set(null);
+    try {
+      await this.ringi.deleteAttachment(this.id(), attachment.id);
+      await this.load();
+    } catch (err) {
+      this.attachmentError.set(apiErrorMessage(err));
+    }
   }
 
   buttonClass(action: RingiAction): string {

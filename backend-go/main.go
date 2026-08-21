@@ -41,7 +41,15 @@ func run() error {
 	// 認証情報は Application Default Credentials から取得する。
 	// ローカル: gcloud auth application-default login
 	// Cloud Run: サービスアカウントが自動的に適用される
-	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID})
+	// 添付ファイルは Firebase Storage ではなく専用の Cloud Storage バケットに置く。
+	// クライアントから直接アクセスさせない方針のため Firebase Storage の
+	// セキュリティルールを使う必要がなく、一般公開経路を持たないバケットの方が適する。
+	bucketName := env("STORAGE_BUCKET", projectID+"-attachments")
+
+	app, err := firebase.NewApp(ctx, &firebase.Config{
+		ProjectID:     projectID,
+		StorageBucket: bucketName,
+	})
 	if err != nil {
 		return err
 	}
@@ -55,8 +63,21 @@ func run() error {
 	}
 	defer fsClient.Close()
 
+	storageClient, err := app.Storage(ctx)
+	if err != nil {
+		return err
+	}
+	bucket, err := storageClient.DefaultBucket()
+	if err != nil {
+		return err
+	}
+
+	ringiService := services.NewRingiService(fsClient)
+
 	apiMux := http.NewServeMux()
-	handlers.NewRingiHandler(services.NewRingiService(fsClient)).Register(apiMux)
+	handlers.NewRingiHandler(ringiService).Register(apiMux)
+	handlers.NewAttachmentHandler(
+		services.NewAttachmentService(fsClient, bucket, ringiService)).Register(apiMux)
 
 	auth := &middleware.Auth{AuthClient: authClient, Firestore: fsClient}
 
@@ -93,7 +114,7 @@ func run() error {
 		shutdownErr <- srv.Shutdown(shutdownCtx)
 	}()
 
-	log.Printf("RingiFlow API listening on :%s (project=%s, origins=%v)", port, projectID, origins)
+	log.Printf("RingiFlow API listening on :%s (project=%s, bucket=%s, origins=%v)", port, projectID, bucketName, origins)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
