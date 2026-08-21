@@ -75,7 +75,7 @@ func usage() {
 	fmt.Fprint(os.Stderr, `RingiFlow ユーザー管理ツール
 
 使い方:
-  useradmin create  -employee <社員ID> -name <氏名> -role <ロール> [-password <初期パスワード>]
+  useradmin create  -employee <社員ID> -name <氏名> -role <ロール> [-department <所属>] [-password <初期パスワード>]
   useradmin list
   useradmin setrole -employee <社員ID> -role <ロール>
   useradmin passwd  -employee <社員ID> [-password <新しいパスワード>]
@@ -119,6 +119,7 @@ func createCmd(args []string) error {
 	fs := flag.NewFlagSet("create", flag.ExitOnError)
 	employee := fs.String("employee", "", "社員ID（必須）")
 	name := fs.String("name", "", "氏名（必須）")
+	department := fs.String("department", "", "所属部門（稟議書の所属欄に表示）")
 	role := fs.String("role", "", "権限ロール（必須）")
 	password := fs.String("password", "", "初期パスワード（省略時は自動生成）")
 	projectID := fs.String("project", defaultProjectID, "Firebase プロジェクトID")
@@ -170,6 +171,7 @@ func createCmd(args []string) error {
 		EmployeeID: strings.TrimSpace(*employee),
 		Name:       *name,
 		Role:       *role,
+		Department: strings.TrimSpace(*department),
 	})
 	if err != nil {
 		// Firestore 側の作成に失敗した場合、Auth 側だけが残ると
@@ -184,6 +186,9 @@ func createCmd(args []string) error {
 	fmt.Printf("  社員ID        : %s\n", *employee)
 	fmt.Printf("  氏名          : %s\n", *name)
 	fmt.Printf("  ロール        : %s\n", *role)
+	if *department != "" {
+		fmt.Printf("  所属          : %s\n", *department)
+	}
 	fmt.Printf("  ログインID    : %s（画面では社員IDのみ入力）\n", email)
 	fmt.Printf("  初期パスワード: %s\n", pw)
 	fmt.Printf("  uid           : %s\n", user.UID)

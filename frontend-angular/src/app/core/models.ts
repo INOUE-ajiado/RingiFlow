@@ -44,6 +44,14 @@ export interface AppUser {
   employeeId: string;
   name: string;
   role: Role;
+  /** 所属部門。稟議書の「所属」欄に表示する。 */
+  department: string;
+}
+
+/** 概要欄の1項目。品名・予算・購入先のように稟議ごとに項目が変わるため可変とする。 */
+export interface SummaryItem {
+  label: string;
+  value: string;
 }
 
 export interface RingiRequest {
@@ -56,6 +64,12 @@ export interface RingiRequest {
   applicantId: string;
   applicantName: string;
   applicantEmployeeId: string;
+  /** 申請時点の申請者の所属部門。 */
+  department: string;
+  /** 決裁希望日（ISO文字列）。未指定なら null。 */
+  dueDate: string | null;
+  /** 概要欄の項目。 */
+  summary: SummaryItem[] | null;
   status: RingiStatus;
   attachments: Attachment[] | null;
   createdAt: string;
@@ -82,9 +96,11 @@ export interface FieldChange {
 
 /** 変更差分に表示する項目名。 */
 export const FIELD_LABELS: Record<string, string> = {
-  title: 'タイトル',
-  content: '申請内容',
+  title: '件名',
+  content: '申請理由・目的',
   amount: '金額',
+  dueDate: '決裁希望日',
+  summary: '概要',
 };
 
 /** 差分の値を表示用に整える。金額は3桁区切りにする。 */

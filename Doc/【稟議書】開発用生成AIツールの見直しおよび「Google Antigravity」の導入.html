@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><script>(function(){function s(l,a){try{const sa=a.map(x=>{if(typeof x==='undefined')return'undefined';if(x===null)return'null';if(typeof x==='object'){try{return JSON.stringify(x,null,2)}catch(e){return x.toString()}}return x.toString()});window.parent.postMessage({source:'iframe-console',level:l,messages:sa},'*')}catch(e){}}const o={l:console.log,w:console.warn,e:console.error,i:console.info};console.log=function(...a){s('log',a);o.l.apply(console,a)};console.warn=function(...a){s('warn',a);o.w.apply(console,a)};console.error=function(...a){s('error',a);o.e.apply(console,a)};console.info=function(...a){s('info',a);o.i.apply(console,a)};window.onerror=function(m){s('error',[m])}})()</script>
+    <script>
+      (function() {
+        document.addEventListener('click', function(e) {
+          const a = e.target.closest('a');
+          if (a && a.getAttribute('href') && !a.getAttribute('href').startsWith('http') && !a.getAttribute('href').startsWith('#')) {
+            e.preventDefault();
+            window.parent.postMessage({
+              source: 'iframe-navigation',
+              url: a.getAttribute('href')
+            }, '*');
+          }
+        });
+      })();
+    </script>
+  
+    <meta charset="UTF-8">
+    <title>稟議書_Google_Antigravity導入_Final_NoBtn</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #f3f4f6;
+            color: #000000;
+            font-weight: 400;
+            -webkit-print-color-adjust: exact;
+        }
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 20mm 22mm;
+            margin: 10mm auto;
+            background: white;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+        @media print {
+            body { background: none; }
+            .page { margin: 0; box-shadow: none; }
+        }
+
+        /* 印影欄 */
+        .stamp-group {
+            display: flex;
+            border: 1px solid #000000;
+        }
+        .stamp-block {
+            width: 70px;
+            height: 85px;
+            border-right: 1px solid #000000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .stamp-block:last-child { border-right: none; }
+        
+        .stamp-label {
+            width: 100%;
+            text-align: center;
+            font-size: 11px;
+            padding-top: 5px;
+            height: 24px;
+        }
+
+        .stamp-area {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        /* 概要テーブル */
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-top: 1px solid #000000;
+        }
+        .summary-table td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #eeeeee;
+        }
+        .summary-table td.label {
+            width: 120px;
+            font-size: 13px;
+            background-color: #fafafa;
+        }
+
+        /* セクション見出し */
+        .section-header {
+            font-size: 14px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-header::before {
+            content: "";
+            display: block;
+            width: 3px;
+            height: 14px;
+            background-color: #000000;
+        }
+    </style>
+<style data-filename="style.css">/* style.css */
+</style></head>
+<body>
+
+    <div class="page">
+        <div class="flex justify-between items-start mb-10">
+            <div>
+                <h1 class="text-4xl tracking-[0.8em] leading-none mb-2">稟議書</h1>
+                <p class="text-[10px] tracking-widest text-gray-500">APPROVAL REQUEST FORM</p>
+            </div>
+            <div class="text-right text-[12px]">
+                <p>起案日：2026年3月13日</p>
+            </div>
+        </div>
+
+        <div class="flex justify-between items-start mb-12">
+            <div class="w-1/2 flex flex-col gap-5 pt-2">
+                <div class="flex items-center">
+                    <span class="w-24 text-[12px] text-gray-500">所属部門</span>
+                    <span class="text-[12px] text-black">総務部 デジタル推進課</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="w-24 text-[12px] text-gray-500">起案者名</span>
+                    <span class="text-[12px] text-black">山田 惇斗</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="w-24 text-[12px] text-gray-500">決済期限</span>
+                    <span class="text-[12px] text-black">2026.03.19 (木)</span>
+                </div>
+            </div>
+
+            <div class="stamp-group">
+                <div class="stamp-block">
+                    <div class="stamp-label">代表</div>
+                    <div class="stamp-area"></div>
+                </div>
+                <div class="stamp-block">
+                    <div class="stamp-label">経理</div>
+                    <div class="stamp-area"></div>
+                </div>
+                <div class="stamp-block">
+                    <div class="stamp-label">上長</div>
+                    <div class="stamp-area"></div>
+                </div>
+                <div class="stamp-block">
+                    <div class="stamp-label">提出者</div>
+                    <div class="stamp-area">
+                        <div class="border-2 border-red-500 text-red-500 rounded-full w-[48px] h-[48px] flex items-center justify-center text-[10px] font-bold rotate-12">
+                            山田<br>3/13
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-10">
+            <div class="section-header text-black">件名</div>
+            <div class="text-xl leading-snug pl-3">
+                開発用生成AIツールの見直しおよび「Google Antigravity」の導入に関する申請
+            </div>
+        </div>
+
+        <div class="mb-10">
+            <div class="section-header text-black">概要</div>
+            <table class="summary-table">
+                <tr>
+                    <td class="label">新規導入</td>
+                    <td class="text-base">Google Antigravity <span class="text-xs text-gray-500 ml-2">（開発特化型AIツール）</span></td>
+                </tr>
+                <tr>
+                    <td class="label">契約終了</td>
+                    <td class="text-sm">ChatGPT (既存契約の解除)</td>
+                </tr>
+                <tr>
+                    <td class="label">主な用途</td>
+                    <td class="text-sm leading-relaxed">社内ポータルサイトの開発・保守・コードレビュー、およびアーキテクチャ設計。</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="mb-10">
+            <div class="section-header text-black">申請理由・目的</div>
+            <div class="text-[14px] leading-[2.0] px-3 space-y-6">
+                <p>
+                    現在、社内ポータルサイトの継続的なアップデートおよび保守運用において、開発効率化を目的に生成AIを利用しております。この度、更なる開発速度の向上と品質の担保を目的として、既存ツールを見直し、最新の開発特化型AI「Google Antigravity」への切り替えを申請いたします。
+                </p>
+                <div class="space-y-2">
+                    <p class="text-sm">■ 主な選定理由</p>
+                    <ul class="space-y-2 text-[14px]">
+                        <li class="flex items-center gap-3"><span class="w-1.5 h-1.5 bg-black rounded-full"></span> 既存ツールと比較し、設計図からのコード生成精度が約40%向上している点。</li>
+                        <li class="flex items-center gap-3"><span class="w-1.5 h-1.5 bg-black rounded-full"></span> 弊社採用インフラとの親和性が高く、デプロイ自動化の連携が容易である点。</li>
+                        <li class="flex items-center gap-3"><span class="w-1.5 h-1.5 bg-black rounded-full"></span> 開発特化のセキュリティ機能を備え、機密情報の取り扱いがより安全である点。</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-10">
+            <div class="section-header text-black">添付資料・備考</div>
+            <div class="flex gap-8 px-3">
+                <div class="text-[12px] flex items-center gap-2">
+                    <span class="text-lg">□</span> AIツール月額コスト比較レポート_260313.pdf
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-auto pb-4 text-center text-[10px] tracking-[0.5em] text-gray-400">
+            以上
+        </div>
+    </div>
+
+<script data-filename="main.js">(function(){try{/* main.js */
+}catch(e){console.error(e)}})()</script></body>
+</html>

@@ -15,7 +15,7 @@ import {
 } from './models';
 
 function user(role: AppUser['role'], uid = 'u-applicant'): AppUser {
-  return { uid, employeeId: 'E0001', name: 'テスト太郎', role };
+  return { uid, employeeId: 'E0001', name: 'テスト太郎', role, department: '企画事業部' };
 }
 
 function request(status: RingiStatus, applicantId = 'u-applicant'): RingiRequest {
@@ -29,6 +29,9 @@ function request(status: RingiStatus, applicantId = 'u-applicant'): RingiRequest
     applicantName: 'テスト太郎',
     applicantEmployeeId: 'E0001',
     status,
+    department: '企画事業部',
+    dueDate: null,
+    summary: null,
     attachments: null,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
@@ -219,9 +222,11 @@ describe('金額による承認ルート', () => {
 
 describe('変更差分の表示', () => {
   it('項目名を日本語に解決する', () => {
-    expect(FIELD_LABELS['title']).toBe('タイトル');
-    expect(FIELD_LABELS['content']).toBe('申請内容');
+    expect(FIELD_LABELS['title']).toBe('件名');
+    expect(FIELD_LABELS['content']).toBe('申請理由・目的');
     expect(FIELD_LABELS['amount']).toBe('金額');
+    expect(FIELD_LABELS['dueDate']).toBe('決裁希望日');
+    expect(FIELD_LABELS['summary']).toBe('概要');
   });
 
   it('金額は3桁区切りに整形する', () => {

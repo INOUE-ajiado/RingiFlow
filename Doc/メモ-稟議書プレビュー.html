@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><script>(function(){function s(l,a){try{const sa=a.map(x=>{if(typeof x==='undefined')return'undefined';if(x===null)return'null';if(typeof x==='object'){try{return JSON.stringify(x,null,2)}catch(e){return x.toString()}}return x.toString()});window.parent.postMessage({source:'iframe-console',level:l,messages:sa},'*')}catch(e){}}const o={l:console.log,w:console.warn,e:console.error,i:console.info};console.log=function(...a){s('log',a);o.l.apply(console,a)};console.warn=function(...a){s('warn',a);o.w.apply(console,a)};console.error=function(...a){s('error',a);o.e.apply(console,a)};console.info=function(...a){s('info',a);o.i.apply(console,a)};window.onerror=function(m){s('error',[m])}})()</script>
+      <script>
+        window.tailwind = {
+          config: {
+            theme: { extend: {} },
+            corePlugins: { preflight: true }
+          }
+        }
+      </script>
+      <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+      (function() {
+        document.addEventListener('click', function(e) {
+          const a = e.target.closest('a');
+          if (a && a.getAttribute('href') && !a.getAttribute('href').startsWith('http') && !a.getAttribute('href').startsWith('#')) {
+            e.preventDefault();
+            window.parent.postMessage({
+              source: 'iframe-navigation',
+              url: a.getAttribute('href')
+            }, '*');
+          }
+        });
+      })();
+    </script>
+  
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>デジタル稟議書 - iPad導入</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans JP', sans-serif; }
+        @media print {
+            .no-print { display: none; }
+            body { background: white; }
+        }
+    </style>
+<style data-filename="style.css">/* style.css */
+</style></head>
+<body class="bg-slate-50 text-slate-800 p-4 md:p-8">
+
+    <div class="max-w-3xl mx-auto bg-white shadow-xl border border-slate-200 rounded-2xl overflow-hidden">
+        
+        <div class="bg-slate-900 text-white px-8 py-8">
+            <div class="flex justify-between items-start mb-4">
+                <h1 class="text-3xl font-bold tracking-[0.2em]">稟議書</h1>
+                <div class="text-right space-y-1 text-slate-400 text-sm">
+                    <p>起案日: 2026年2月5日(木)</p>
+                    <p>決済希望日: 2026年3月2日(月)</p>
+                </div>
+            </div>
+            <div class="h-1 w-20 bg-blue-500"></div>
+        </div>
+
+        <div class="p-8 space-y-10">
+            
+            <div class="flex flex-col md:flex-row justify-between items-start gap-8">
+                <div class="w-full md:w-1/2 space-y-4">
+                    <div class="flex items-center border-b border-slate-100 pb-2">
+                        <span class="w-20 text-slate-400 text-xs font-bold uppercase">所属</span>
+                        <span class="font-medium text-lg">企画事業部</span>
+                    </div>
+                    <div class="flex items-center border-b border-slate-100 pb-2">
+                        <span class="w-20 text-slate-400 text-xs font-bold uppercase">氏名</span>
+                        <span class="font-medium text-lg">井上 賢治</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <div class="flex flex-col items-center">
+                        <span class="text-[10px] text-slate-400 mb-1 font-bold">上長</span> 
+                        <div class="w-14 h-14 border border-slate-200 rounded-full flex items-center justify-center text-[10px] text-blue-500 font-bold border-dashed">承認済</div>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-[10px] text-slate-400 mb-1 font-bold">代表</span> 
+                        <div class="w-14 h-14 border border-slate-200 rounded-full flex items-center justify-center text-[10px] text-slate-300">未</div>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-[10px] text-slate-400 mb-1 font-bold">経理</span> 
+                        <div class="w-14 h-14 border border-slate-200 rounded-full flex items-center justify-center text-[10px] text-slate-300">未</div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="text-xs font-bold text-blue-600 uppercase tracking-wider">Subject / 件名</label>
+                <div class="mt-2 text-xl font-bold border-l-4 border-slate-900 pl-4 py-1">
+                    iPad13インチ (++Swift Reserve..の導入用)
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <label class="text-xs font-bold text-blue-600 uppercase tracking-wider">Details / 内容</label>
+                <div class="bg-slate-50 rounded-xl divide-y divide-slate-200 border border-slate-200">
+                    <div class="p-4 flex flex-col md:flex-row md:items-center">
+                        <span class="w-32 text-sm font-bold text-slate-500 mb-1 md:mb-0">【品名】</span>
+                        <span class="text-slate-800 font-medium text-lg">iPad 13インチ</span>
+                    </div>
+                    <div class="p-4 flex flex-col md:flex-row md:items-center">
+                        <span class="w-32 text-sm font-bold text-slate-500 mb-1 md:mb-0">【予算】</span>
+                        <span class="text-slate-800 font-medium text-lg text-red-600">5万円以内</span>
+                    </div>
+                    <div class="p-4 flex flex-col md:flex-row md:items-center">
+                        <span class="w-32 text-sm font-bold text-slate-500 mb-1 md:mb-0">【購入先】</span>
+                        <span class="text-slate-800 font-medium text-lg">(株)ソフマップ(リコレ)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="text-xs font-bold text-blue-600 uppercase tracking-wider">Purpose / 目的</label>
+                <div class="mt-2 p-5 bg-white border border-slate-200 rounded-xl leading-relaxed text-slate-700 shadow-sm">
+                    会議室予約システム『++Swift Reserve..』の導入に伴い、ロビーに設置するタブレットの購入を検討しております。
+                </div>
+            </div>
+
+            <div class="pt-4">
+                <div class="flex items-center space-x-2 text-slate-500 mb-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                    <span class="text-xs font-bold uppercase tracking-widest">Attached Files / 備考・添付</span>
+                </div>
+                <a href="#" class="inline-flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm rounded-lg transition-colors border border-slate-200">
+                    会議室予約システム導入提案資料.pdf
+                </a>
+            </div>
+        </div>
+
+        <div class="no-print bg-slate-50 px-8 py-6 border-t border-slate-200 flex justify-between items-center">
+            <button class="text-slate-400 hover:text-slate-600 transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </button>
+            <div class="flex gap-3">
+                <button class="px-6 py-2 border border-slate-300 rounded-full text-slate-600 font-bold hover:bg-white transition shadow-sm">下書き保存</button>
+                <button class="px-8 py-2 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition shadow-md shadow-blue-200">申請する</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-8 text-center text-slate-400 text-[10px] uppercase tracking-widest no-print">
+        © 2026 Internal Approval System
+    </footer>
+
+<script data-filename="main.js">(function(){try{/* main.js */
+}catch(e){console.error(e)}})()</script></body>
+</html>

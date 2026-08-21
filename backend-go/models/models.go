@@ -56,6 +56,8 @@ type User struct {
 	EmployeeID string `firestore:"employeeId" json:"employeeId"`
 	Name       string `firestore:"name" json:"name"`
 	Role       string `firestore:"role" json:"role"`
+	// Department は所属部門。稟議書の「所属」欄に表示する。
+	Department string `firestore:"department" json:"department"`
 }
 
 // RingiRequest は ringi_requests コレクションのドキュメント。
@@ -70,7 +72,16 @@ type RingiRequest struct {
 	ApplicantID         string `firestore:"applicantId" json:"applicantId"`
 	ApplicantName       string `firestore:"applicantName" json:"applicantName"`
 	ApplicantEmployeeID string `firestore:"applicantEmployeeId" json:"applicantEmployeeId"`
-	Status              string `firestore:"status" json:"status"`
+	// Department は申請時点の申請者の所属部門。異動後も当時の記録を残すため
+	// 参照ではなく値をコピーして保持する。
+	Department string `firestore:"department" json:"department"`
+	// DueDate は決裁希望日（任意）。日付のみを扱い、時刻は使わない。
+	DueDate *time.Time `firestore:"dueDate" json:"dueDate"`
+	// Summary は「概要」欄の項目。品名・予算・購入先のように、
+	// 稟議の種類ごとに必要な項目が変わるため固定のフィールドを持たず、
+	// ラベルと値の並びとして扱う。
+	Summary []SummaryItem `firestore:"summary" json:"summary"`
+	Status  string        `firestore:"status" json:"status"`
 	// Attachments は添付ファイルの一覧。実体は Cloud Storage に置き、
 	// ここにはメタデータのみを保持する。
 	Attachments []Attachment `firestore:"attachments" json:"attachments"`
@@ -96,6 +107,8 @@ const (
 	FieldTitle   = "title"
 	FieldContent = "content"
 	FieldAmount  = "amount"
+	FieldDueDate = "dueDate"
+	FieldSummary = "summary"
 )
 
 // FieldChange は1項目の変更内容。表示用のラベルはフロントエンドが
@@ -250,3 +263,16 @@ func NextAfterApprove(current string, amount int64) (string, bool) {
 func RequiresCEOApproval(amount int64) bool {
 	return amount >= CEOApprovalThreshold
 }
+
+// SummaryItem は「概要」欄の1項目。
+type SummaryItem struct {
+	Label string `firestore:"label" json:"label"`
+	Value string `firestore:"value" json:"value"`
+}
+
+// 概要欄の制限。
+const (
+	MaxSummaryItems      = 10
+	MaxSummaryLabelRunes = 20
+	MaxSummaryValueRunes = 200
+)

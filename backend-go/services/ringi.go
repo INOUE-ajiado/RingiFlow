@@ -54,6 +54,10 @@ type CreateInput struct {
 	Title   string `json:"title"`
 	Content string `json:"content"`
 	Amount  int64  `json:"amount"`
+	// DueDate は決裁希望日（YYYY-MM-DD、任意）。
+	DueDate string `json:"dueDate"`
+	// Summary は「概要」欄の項目（任意）。
+	Summary []models.SummaryItem `json:"summary"`
 }
 
 func (in CreateInput) validate() *Error {
@@ -76,6 +80,15 @@ func (s *RingiService) Create(ctx context.Context, actor *models.User, in Create
 		return nil, err
 	}
 
+	dueDate, appErr := parseDueDate(in.DueDate)
+	if appErr != nil {
+		return nil, appErr
+	}
+	summary, appErr := normalizeSummary(in.Summary)
+	if appErr != nil {
+		return nil, appErr
+	}
+
 	now := time.Now().UTC()
 	docRef := s.fs.Collection(collectionRingi).NewDoc()
 
@@ -87,9 +100,13 @@ func (s *RingiService) Create(ctx context.Context, actor *models.User, in Create
 		ApplicantID:         actor.UID,
 		ApplicantName:       actor.Name,
 		ApplicantEmployeeID: actor.EmployeeID,
-		Status:              models.StatusPendingSystem,
-		CreatedAt:           now,
-		UpdatedAt:           now,
+		// 所属は申請時点の値をコピーする。異動後も当時の記録が残るようにするため。
+		Department: actor.Department,
+		DueDate:    dueDate,
+		Summary:    summary,
+		Status:     models.StatusPendingSystem,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	err := s.fs.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -154,9 +171,11 @@ func (s *RingiService) nextRequestNo(tx *firestore.Transaction, now time.Time) (
 type TransitionInput struct {
 	Comment string `json:"comment"`
 	// 以下は再申請（resubmit）時のみ有効。空の場合は既存の値を維持する。
-	Title   *string `json:"title,omitempty"`
-	Content *string `json:"content,omitempty"`
-	Amount  *int64  `json:"amount,omitempty"`
+	Title   *string               `json:"title,omitempty"`
+	Content *string               `json:"content,omitempty"`
+	Amount  *int64                `json:"amount,omitempty"`
+	DueDate *string               `json:"dueDate,omitempty"`
+	Summary *[]models.SummaryItem `json:"summary,omitempty"`
 }
 
 // TransitionResult は状態遷移の結果。
@@ -336,6 +355,34 @@ func resubmitUpdates(current *models.RingiRequest, in TransitionInput) ([]firest
 				Field:  models.FieldAmount,
 				Before: strconv.FormatInt(current.Amount, 10),
 				After:  strconv.FormatInt(*in.Amount, 10),
+			})
+		}
+	}
+	if in.DueDate != nil {
+		dueDate, appErr := parseDueDate(*in.DueDate)
+		if appErr != nil {
+			return nil, nil, appErr
+		}
+		updates = append(updates, firestore.Update{Path: "dueDate", Value: dueDate})
+		if formatDueDate(dueDate) != formatDueDate(current.DueDate) {
+			changes = append(changes, models.FieldChange{
+				Field:  models.FieldDueDate,
+				Before: formatDueDate(current.DueDate),
+				After:  formatDueDate(dueDate),
+			})
+		}
+	}
+	if in.Summary != nil {
+		summary, appErr := normalizeSummary(*in.Summary)
+		if appErr != nil {
+			return nil, nil, appErr
+		}
+		updates = append(updates, firestore.Update{Path: "summary", Value: summary})
+		if !summaryEqual(summary, current.Summary) {
+			changes = append(changes, models.FieldChange{
+				Field:  models.FieldSummary,
+				Before: formatSummary(current.Summary),
+				After:  formatSummary(summary),
 			})
 		}
 	}

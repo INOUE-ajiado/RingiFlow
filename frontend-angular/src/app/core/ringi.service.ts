@@ -3,12 +3,23 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../environments/environment';
-import { Attachment, AuditLog, RingiAction, RingiRequest, RingiStatus } from './models';
+import {
+  Attachment,
+  AuditLog,
+  RingiAction,
+  RingiRequest,
+  RingiStatus,
+  SummaryItem,
+} from './models';
 
 export interface CreateRingiInput {
   title: string;
   content: string;
   amount: number;
+  /** 決裁希望日（YYYY-MM-DD）。未指定は空文字。 */
+  dueDate?: string;
+  /** 概要欄の項目。 */
+  summary?: SummaryItem[];
 }
 
 export interface TransitionInput {
@@ -17,6 +28,8 @@ export interface TransitionInput {
   title?: string;
   content?: string;
   amount?: number;
+  dueDate?: string;
+  summary?: SummaryItem[];
 }
 
 export interface RingiDetail {
