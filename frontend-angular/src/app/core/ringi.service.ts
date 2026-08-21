@@ -26,6 +26,12 @@ export interface RingiDetail {
 
 export type ListScope = 'all' | 'mine' | 'inbox';
 
+export interface ListResult {
+  items: RingiRequest[];
+  /** 件数上限で結果が打ち切られたか。true のとき画面に警告を表示する。 */
+  truncated: boolean;
+}
+
 /**
  * Go バックエンドAPI との通信。
  *
@@ -37,10 +43,10 @@ export class RingiService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBaseUrl}/api/v1/ringi`;
 
-  list(scope: ListScope = 'all'): Promise<RingiRequest[]> {
-    return firstValueFrom(
-      this.http.get<{ items: RingiRequest[] }>(this.base, { params: { scope } }),
-    ).then((res) => res.items ?? []);
+  list(scope: ListScope = 'all'): Promise<ListResult> {
+    return firstValueFrom(this.http.get<ListResult>(this.base, { params: { scope } })).then(
+      (res) => ({ items: res.items ?? [], truncated: res.truncated ?? false }),
+    );
   }
 
   get(id: string): Promise<RingiDetail> {

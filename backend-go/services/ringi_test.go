@@ -374,3 +374,56 @@ func TestCanView_マスターは全件閲覧できる(t *testing.T) {
 		}
 	}
 }
+
+// --- 取り下げ -------------------------------------------------------------
+
+func TestEvaluateTransition_取り下げは申請者本人のみ(t *testing.T) {
+	owner := user(uidApplicant, models.RoleApplicant)
+	for _, from := range []string{
+		models.StatusPendingSystem, models.StatusPendingProducer,
+		models.StatusPendingCEO, models.StatusReturned,
+	} {
+		rule, err := evaluateTransition(req(from), owner, models.ActionWithdraw, "")
+		if err != nil {
+			t.Errorf("%s からの取り下げが拒否された: %v", from, err)
+			continue
+		}
+		if rule.To != models.StatusWithdrawn {
+			t.Errorf("%s: got %q, want withdrawn", from, rule.To)
+		}
+
+		// 他人は取り下げられない
+		if _, err := evaluateTransition(req(from), user("uid-other", models.RoleApplicant), models.ActionWithdraw, ""); err == nil {
+			t.Errorf("%s で他人による取り下げが許可された", from)
+		}
+		// 承認者であっても本人でなければ取り下げられない
+		if _, err := evaluateTransition(req(from), user(uidCEO, models.RoleCEO), models.ActionWithdraw, ""); err == nil {
+			t.Errorf("%s で代表による他人の稟議の取り下げが許可された", from)
+		}
+	}
+}
+
+func TestEvaluateTransition_取り下げ後は操作できない(t *testing.T) {
+	owner := user(uidApplicant, models.RoleApplicant)
+	for _, action := range []string{
+		models.ActionApprove, models.ActionReject, models.ActionReturn,
+		models.ActionResubmit, models.ActionWithdraw,
+	} {
+		if _, err := evaluateTransition(req(models.StatusWithdrawn), owner, action, "コメント"); err == nil {
+			t.Errorf("取り下げ済みの稟議に対する %s が許可された", action)
+		}
+	}
+	// マスターであっても同様
+	if _, err := evaluateTransition(req(models.StatusWithdrawn), user("uid-master", models.RoleMaster), models.ActionApprove, ""); err == nil {
+		t.Error("マスターが取り下げ済みの稟議を承認できてしまう")
+	}
+}
+
+func TestEvaluateTransition_決裁済みは取り下げられない(t *testing.T) {
+	owner := user(uidApplicant, models.RoleApplicant)
+	for _, from := range []string{models.StatusApproved, models.StatusRejected} {
+		if _, err := evaluateTransition(req(from), owner, models.ActionWithdraw, ""); err == nil {
+			t.Errorf("%s の稟議が取り下げられてしまう", from)
+		}
+	}
+}

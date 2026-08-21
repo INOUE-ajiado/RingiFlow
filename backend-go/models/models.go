@@ -14,7 +14,11 @@ const (
 	StatusApproved        = "approved"         // 決裁完了（終端）
 	StatusRejected        = "rejected"         // 却下（終端）
 	StatusReturned        = "returned"         // 差し戻し
+	StatusWithdrawn       = "withdrawn"        // 取り下げ（終端）
 )
+
+// PendingStatuses は承認待ちのステータス一覧（決裁の進行中を表す）。
+var PendingStatuses = []string{StatusPendingSystem, StatusPendingProducer, StatusPendingCEO}
 
 // 権限ロール（基本設計書 4.1節）
 const (
@@ -41,6 +45,7 @@ const (
 	ActionReject   = "reject"
 	ActionReturn   = "return"
 	ActionResubmit = "resubmit"
+	ActionWithdraw = "withdraw"
 )
 
 // User は users コレクションのドキュメント。ドキュメントIDは Firebase Auth の uid。
@@ -53,7 +58,10 @@ type User struct {
 
 // RingiRequest は ringi_requests コレクションのドキュメント。
 type RingiRequest struct {
-	ID                  string    `firestore:"id" json:"id"`
+	ID string `firestore:"id" json:"id"`
+	// RequestNo は人が読める稟議番号（例: R-2026-0001）。
+	// 申請と同一トランザクション内でカウンタを採番するため重複しない。
+	RequestNo           string    `firestore:"requestNo" json:"requestNo"`
 	Title               string    `firestore:"title" json:"title"`
 	Content             string    `firestore:"content" json:"content"`
 	Amount              int64     `firestore:"amount" json:"amount"`
@@ -113,6 +121,13 @@ var Transitions = map[TransitionKey]TransitionRule{
 
 	// 差し戻し → 再申請（ロールではなく申請者本人であることを条件とする）
 	{StatusReturned, ActionResubmit}: {RequireOwner: true, To: StatusPendingSystem},
+
+	// 取り下げ。決裁が確定する前であれば、申請者本人がいつでも取り下げられる。
+	// 承認者による却下（rejected）とは区別し、終端ステータス withdrawn へ遷移する。
+	{StatusPendingSystem, ActionWithdraw}:   {RequireOwner: true, To: StatusWithdrawn},
+	{StatusPendingProducer, ActionWithdraw}: {RequireOwner: true, To: StatusWithdrawn},
+	{StatusPendingCEO, ActionWithdraw}:      {RequireOwner: true, To: StatusWithdrawn},
+	{StatusReturned, ActionWithdraw}:        {RequireOwner: true, To: StatusWithdrawn},
 }
 
 // PendingStatusForRole は、そのロールが承認すべきステータスを返す。

@@ -29,6 +29,7 @@ func (h *RingiHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/ringi/{id}/return", h.transition(models.ActionReturn))
 	mux.HandleFunc("POST /api/v1/ringi/{id}/reject", h.transition(models.ActionReject))
 	mux.HandleFunc("POST /api/v1/ringi/{id}/resubmit", h.transition(models.ActionResubmit))
+	mux.HandleFunc("POST /api/v1/ringi/{id}/withdraw", h.transition(models.ActionWithdraw))
 }
 
 // me は認証済みユーザー自身の情報（氏名・社員ID・ロール）を返す。
@@ -80,14 +81,15 @@ func (h *RingiHandler) list(w http.ResponseWriter, r *http.Request) {
 	case string(services.ScopeInbox):
 		scope = services.ScopeInbox
 	}
-	items, err := h.svc.List(r.Context(), user, scope)
+	result, err := h.svc.List(r.Context(), user, scope)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"success": true,
-		"items":   items,
+		"success":   true,
+		"items":     result.Items,
+		"truncated": result.Truncated,
 	})
 }
 

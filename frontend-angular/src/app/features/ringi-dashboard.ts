@@ -43,6 +43,12 @@ import { StatusBadge } from '../shared/status-badge';
       <p class="error-message">{{ error() }}</p>
     }
 
+    @if (truncated()) {
+      <p class="truncated-warning">
+        件数が上限（{{ limit }}件）に達したため、一部の稟議が表示されていません。絞り込んでご確認ください。
+      </p>
+    }
+
     @if (loading()) {
       <div class="empty-state">読み込み中...</div>
     } @else if (items().length === 0) {
@@ -52,6 +58,7 @@ import { StatusBadge } from '../shared/status-badge';
         <table>
           <thead>
             <tr>
+              <th class="col-no">稟議番号</th>
               <th class="col-status">ステータス</th>
               <th>タイトル</th>
               <th class="col-applicant">申請者</th>
@@ -62,6 +69,7 @@ import { StatusBadge } from '../shared/status-badge';
           <tbody>
             @for (item of items(); track item.id) {
               <tr>
+                <td class="col-no">{{ item.requestNo }}</td>
                 <td><app-status-badge [status]="item.status" /></td>
                 <td>
                   <a [routerLink]="['/ringi', item.id]" class="title-link">{{ item.title }}</a>
@@ -189,6 +197,23 @@ import { StatusBadge } from '../shared/status-badge';
     .col-applicant {
       white-space: nowrap;
     }
+
+    .col-no {
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .truncated-warning {
+      background: var(--warning-bg);
+      border-left: 3px solid var(--warning);
+      color: #92400e;
+      padding: 0.7rem 1rem;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.88rem;
+      margin: 0 0 1rem;
+    }
   `,
 })
 export class RingiDashboardComponent {
@@ -197,6 +222,10 @@ export class RingiDashboardComponent {
 
   readonly scope = signal<ListScope>('all');
   readonly items = signal<RingiRequest[]>([]);
+  readonly truncated = signal(false);
+
+  /** バックエンドの listLimit と揃えた表示用の上限値。 */
+  readonly limit = 200;
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
 
@@ -230,10 +259,13 @@ export class RingiDashboardComponent {
     this.loading.set(true);
     this.error.set(null);
     try {
-      this.items.set(await this.ringi.list(this.scope()));
+      const result = await this.ringi.list(this.scope());
+      this.items.set(result.items);
+      this.truncated.set(result.truncated);
     } catch (err) {
       this.error.set(apiErrorMessage(err));
       this.items.set([]);
+      this.truncated.set(false);
     } finally {
       this.loading.set(false);
     }

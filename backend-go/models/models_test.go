@@ -20,6 +20,11 @@ func TestTransitionsMatchesDesign(t *testing.T) {
 		{StatusPendingCEO, ActionReject}:  {RequiredRole: RoleCEO, To: StatusRejected, CommentRequired: true},
 
 		{StatusReturned, ActionResubmit}: {RequireOwner: true, To: StatusPendingSystem},
+
+		{StatusPendingSystem, ActionWithdraw}:   {RequireOwner: true, To: StatusWithdrawn},
+		{StatusPendingProducer, ActionWithdraw}: {RequireOwner: true, To: StatusWithdrawn},
+		{StatusPendingCEO, ActionWithdraw}:      {RequireOwner: true, To: StatusWithdrawn},
+		{StatusReturned, ActionWithdraw}:        {RequireOwner: true, To: StatusWithdrawn},
 	}
 
 	if len(Transitions) != len(want) {
@@ -37,11 +42,11 @@ func TestTransitionsMatchesDesign(t *testing.T) {
 	}
 }
 
-// TestTerminalStatusesHaveNoTransitions は approved / rejected が終端であり、
+// TestTerminalStatusesHaveNoTransitions は approved / rejected / withdrawn が終端であり、
 // いかなる操作も受け付けないことを検証する。
 func TestTerminalStatusesHaveNoTransitions(t *testing.T) {
-	actions := []string{ActionApprove, ActionReject, ActionReturn, ActionResubmit, ActionCreate}
-	for _, terminal := range []string{StatusApproved, StatusRejected} {
+	actions := []string{ActionApprove, ActionReject, ActionReturn, ActionResubmit, ActionCreate, ActionWithdraw}
+	for _, terminal := range []string{StatusApproved, StatusRejected, StatusWithdrawn} {
 		for _, action := range actions {
 			if _, ok := Transitions[TransitionKey{From: terminal, Action: action}]; ok {
 				t.Errorf("終端ステータス %s に遷移 %s が定義されています", terminal, action)
@@ -51,7 +56,7 @@ func TestTerminalStatusesHaveNoTransitions(t *testing.T) {
 }
 
 // TestReturnedAcceptsOnlyResubmit は差し戻し状態から実行できるのが
-// 申請者本人による再申請のみであることを検証する。
+// 申請者本人による再申請と取り下げのみであることを検証する。
 func TestReturnedAcceptsOnlyResubmit(t *testing.T) {
 	for _, action := range []string{ActionApprove, ActionReject, ActionReturn} {
 		if _, ok := Transitions[TransitionKey{From: StatusReturned, Action: action}]; ok {
@@ -104,6 +109,31 @@ func TestPendingStatusForRole(t *testing.T) {
 		if gotStatus != c.wantStatus || gotOK != c.wantOK {
 			t.Errorf("PendingStatusForRole(%q) = (%q, %v), want (%q, %v)",
 				c.role, gotStatus, gotOK, c.wantStatus, c.wantOK)
+		}
+	}
+}
+
+// TestWithdrawTransitions は取り下げが決裁確定前のすべての状態から
+// 申請者本人のみによって実行できることを検証する。
+func TestWithdrawTransitions(t *testing.T) {
+	// 決裁確定前の状態からは取り下げられる
+	for _, from := range []string{StatusPendingSystem, StatusPendingProducer, StatusPendingCEO, StatusReturned} {
+		rule, ok := Transitions[TransitionKey{From: from, Action: ActionWithdraw}]
+		if !ok {
+			t.Errorf("%s から取り下げできません", from)
+			continue
+		}
+		if rule.To != StatusWithdrawn {
+			t.Errorf("%s の取り下げ先: got %q, want %q", from, rule.To, StatusWithdrawn)
+		}
+		if !rule.RequireOwner {
+			t.Errorf("%s の取り下げが申請者本人に限定されていません", from)
+		}
+		if rule.RequiredRole != "" {
+			t.Errorf("%s の取り下げはロールで判定してはいけません: got %q", from, rule.RequiredRole)
+		}
+		if rule.CommentRequired {
+			t.Errorf("%s の取り下げのコメントは任意である必要があります", from)
 		}
 	}
 }

@@ -9,6 +9,7 @@ function user(role: AppUser['role'], uid = 'u-applicant'): AppUser {
 function request(status: RingiStatus, applicantId = 'u-applicant'): RingiRequest {
   return {
     id: 'r-1',
+    requestNo: 'R-2026-0001',
     title: 'テスト稟議',
     content: '内容',
     amount: 1000,
@@ -52,6 +53,7 @@ describe('availableActions', () => {
   it('差し戻しの再申請は申請者本人にのみ提示する', () => {
     expect(availableActions(request('returned'), user('applicant', 'u-applicant'))).toEqual([
       'resubmit',
+      'withdraw',
     ]);
     expect(availableActions(request('returned'), user('applicant', 'u-other'))).toEqual([]);
     // 承認者であっても申請者本人でなければ再申請はできない
@@ -81,26 +83,22 @@ describe('isTerminal', () => {
 describe('マスターロール', () => {
   it('各承認待ちステータスで全操作を提示する', () => {
     const master = user('master', 'uid-master');
-    expect(availableActions(request('pending_system'), master)).toEqual([
-      'approve',
-      'return',
-      'reject',
-    ]);
-    expect(availableActions(request('pending_producer'), master)).toEqual([
-      'approve',
-      'return',
-      'reject',
-    ]);
-    expect(availableActions(request('pending_ceo'), master)).toEqual([
-      'approve',
-      'return',
-      'reject',
-    ]);
+    for (const status of ['pending_system', 'pending_producer', 'pending_ceo'] as const) {
+      expect(availableActions(request(status), master)).toEqual([
+        'approve',
+        'return',
+        'reject',
+        'withdraw',
+      ]);
+    }
   });
 
   it('他者が申請した差し戻し稟議でも再申請を提示する', () => {
     const master = user('master', 'uid-master');
-    expect(availableActions(request('returned', 'uid-someone-else'), master)).toEqual(['resubmit']);
+    expect(availableActions(request('returned', 'uid-someone-else'), master)).toEqual([
+      'resubmit',
+      'withdraw',
+    ]);
   });
 
   // 状態遷移表そのものは迂回しない
@@ -108,5 +106,33 @@ describe('マスターロール', () => {
     const master = user('master', 'uid-master');
     expect(availableActions(request('approved'), master)).toEqual([]);
     expect(availableActions(request('rejected'), master)).toEqual([]);
+  });
+});
+
+describe('取り下げ', () => {
+  it('決裁確定前は申請者本人に取り下げを提示する', () => {
+    const owner = user('applicant', 'u-applicant');
+    for (const status of ['pending_system', 'pending_producer', 'pending_ceo'] as const) {
+      expect(availableActions(request(status), owner)).toContain('withdraw');
+    }
+    expect(availableActions(request('returned'), owner)).toEqual(['resubmit', 'withdraw']);
+  });
+
+  it('他人には取り下げを提示しない', () => {
+    const other = user('applicant', 'uid-other');
+    expect(availableActions(request('pending_system'), other)).toEqual([]);
+    // 承認者は自身の承認操作のみで、取り下げは含まれない
+    expect(availableActions(request('pending_system'), user('system_admin', 'uid-sys'))).toEqual([
+      'approve',
+      'return',
+      'reject',
+    ]);
+  });
+
+  it('取り下げ済みは終端として扱う', () => {
+    expect(isTerminal('withdrawn')).toBe(true);
+    const owner = user('applicant', 'u-applicant');
+    expect(availableActions(request('withdrawn'), owner)).toEqual([]);
+    expect(availableActions(request('withdrawn'), user('master', 'uid-master'))).toEqual([]);
   });
 });

@@ -12,7 +12,8 @@ export type RingiStatus =
   | 'pending_ceo'
   | 'approved'
   | 'rejected'
-  | 'returned';
+  | 'returned'
+  | 'withdrawn';
 
 /**
  * 権限ロール。
@@ -22,7 +23,7 @@ export type RingiStatus =
  */
 export type Role = 'applicant' | 'system_admin' | 'producer' | 'ceo' | 'master';
 
-export type RingiAction = 'approve' | 'return' | 'reject' | 'resubmit';
+export type RingiAction = 'approve' | 'return' | 'reject' | 'resubmit' | 'withdraw';
 
 export interface AppUser {
   uid: string;
@@ -33,6 +34,8 @@ export interface AppUser {
 
 export interface RingiRequest {
   id: string;
+  /** 人が読める稟議番号（例: R-2026-0001）。 */
+  requestNo: string;
   title: string;
   content: string;
   amount: number;
@@ -60,6 +63,7 @@ export const STATUS_LABELS: Record<RingiStatus, string> = {
   approved: '決裁完了',
   rejected: '却下',
   returned: '差し戻し',
+  withdrawn: '取り下げ',
 };
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -76,6 +80,7 @@ export const ACTION_LABELS: Record<RingiAction | 'create', string> = {
   return: '差し戻し',
   reject: '却下',
   resubmit: '再申請',
+  withdraw: '取り下げ',
 };
 
 /** 差し戻し・却下は理由コメントの入力が必須（基本設計書 5.1節）。 */
@@ -84,6 +89,7 @@ export const COMMENT_REQUIRED: Record<RingiAction, boolean> = {
   return: true,
   reject: true,
   resubmit: false,
+  withdraw: false,
 };
 
 interface TransitionRule {
@@ -99,19 +105,25 @@ const TRANSITIONS: Partial<Record<RingiStatus, TransitionRule[]>> = {
     { action: 'approve', role: 'system_admin' },
     { action: 'return', role: 'system_admin' },
     { action: 'reject', role: 'system_admin' },
+    { action: 'withdraw', owner: true },
   ],
   pending_producer: [
     { action: 'approve', role: 'producer' },
     { action: 'return', role: 'producer' },
     { action: 'reject', role: 'producer' },
+    { action: 'withdraw', owner: true },
   ],
   pending_ceo: [
     { action: 'approve', role: 'ceo' },
     { action: 'return', role: 'ceo' },
     { action: 'reject', role: 'ceo' },
+    { action: 'withdraw', owner: true },
   ],
-  returned: [{ action: 'resubmit', owner: true }],
-  // approved / rejected は終端のため定義しない
+  returned: [
+    { action: 'resubmit', owner: true },
+    { action: 'withdraw', owner: true },
+  ],
+  // approved / rejected / withdrawn は終端のため定義しない
 };
 
 /** 指定ユーザーがこの稟議に対して実行できる操作を返す。 */
@@ -138,7 +150,12 @@ export function isMaster(role: Role): boolean {
 
 /** 終端ステータス（これ以上の操作ができない）かどうか。 */
 export function isTerminal(status: RingiStatus): boolean {
-  return status === 'approved' || status === 'rejected';
+  return status === 'approved' || status === 'rejected' || status === 'withdrawn';
+}
+
+/** 承認待ち（決裁の進行中）のステータスかどうか。 */
+export function isPending(status: RingiStatus): boolean {
+  return status === 'pending_system' || status === 'pending_producer' || status === 'pending_ceo';
 }
 
 /** 承認権限を持つロールかどうか（applicant 以外）。 */

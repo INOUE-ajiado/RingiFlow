@@ -21,6 +21,8 @@ export class StatusBadge {
         return 'badge-rejected';
       case 'returned':
         return 'badge-returned';
+      case 'withdrawn':
+        return 'badge-withdrawn';
       default:
         return 'badge-pending';
     }

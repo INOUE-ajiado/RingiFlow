@@ -146,6 +146,8 @@ export class ActionDialog {
         return 'btn-warning';
       case 'reject':
         return 'btn-danger';
+      case 'withdraw':
+        return 'btn-secondary';
       default:
         return 'btn-primary';
     }

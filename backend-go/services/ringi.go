@@ -9,6 +9,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"slices"
@@ -24,12 +25,18 @@ import (
 )
 
 const (
-	collectionRingi = "ringi_requests"
-	collectionLogs  = "audit_logs"
+	collectionRingi    = "ringi_requests"
+	collectionLogs     = "audit_logs"
+	collectionCounters = "counters"
 
 	// listLimit は一覧取得の最大件数。
+	// 上限に達した場合は結果を打ち切るが、呼び出し元へ truncated を返して
+	// 「該当なし」と誤認されないようにする。
 	listLimit = 200
 )
+
+// jst は稟議番号の年度判定に用いる日本時間。
+var jst = time.FixedZone("JST", 9*60*60)
 
 // RingiService は稟議に関するユースケースを実装する。
 type RingiService struct {
@@ -85,6 +92,18 @@ func (s *RingiService) Create(ctx context.Context, actor *models.User, in Create
 	}
 
 	err := s.fs.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// 採番はドキュメント作成と同一トランザクション内で行う。
+		// Firestore のトランザクションは読み取りをすべて書き込みより先に実行する
+		// 必要があるため、ここでカウンタを読んでから各ドキュメントを書き込む。
+		requestNo, counterRef, next, err := s.nextRequestNo(tx, now)
+		if err != nil {
+			return err
+		}
+		req.RequestNo = requestNo
+
+		if err := tx.Set(counterRef, map[string]any{"value": next}); err != nil {
+			return err
+		}
 		if err := tx.Create(docRef, req); err != nil {
 			return err
 		}
@@ -102,6 +121,32 @@ func (s *RingiService) Create(ctx context.Context, actor *models.User, in Create
 		return nil, errInternal()
 	}
 	return req, nil
+}
+
+// nextRequestNo は年度ごとのカウンタから次の稟議番号を求める。
+//
+// 同時申請が発生した場合、カウンタドキュメントの読み取りが競合するため
+// Firestore がトランザクションを再試行する。これにより番号は重複しない。
+func (s *RingiService) nextRequestNo(tx *firestore.Transaction, now time.Time) (string, *firestore.DocumentRef, int64, error) {
+	year := now.In(jst).Year()
+	counterRef := s.fs.Collection(collectionCounters).Doc(fmt.Sprintf("ringi_%d", year))
+
+	var next int64 = 1
+	snap, err := tx.Get(counterRef)
+	switch {
+	case err == nil:
+		if v, err := snap.DataAt("value"); err == nil {
+			if current, ok := v.(int64); ok {
+				next = current + 1
+			}
+		}
+	case status.Code(err) == codes.NotFound:
+		// その年の最初の申請。next は 1 のまま。
+	default:
+		return "", nil, 0, err
+	}
+
+	return fmt.Sprintf("R-%d-%04d", year, next), counterRef, next, nil
 }
 
 // TransitionInput は状態遷移操作の入力。
@@ -273,7 +318,14 @@ const (
 //
 // クライアントからの Firestore 直接読み取りは禁止されているため、
 // 閲覧範囲の絞り込みは必ずここで行う。applicant ロールは自身の申請しか取得できない。
-func (s *RingiService) List(ctx context.Context, actor *models.User, scope ListScope) ([]models.RingiRequest, error) {
+// ListResult は一覧取得の結果。
+type ListResult struct {
+	Items []models.RingiRequest `json:"items"`
+	// Truncated は件数上限で結果を打ち切ったかどうか。
+	Truncated bool `json:"truncated"`
+}
+
+func (s *RingiService) List(ctx context.Context, actor *models.User, scope ListScope) (*ListResult, error) {
 	col := s.fs.Collection(collectionRingi)
 
 	var queries []firestore.Query
@@ -285,9 +337,8 @@ func (s *RingiService) List(ctx context.Context, actor *models.User, scope ListS
 			queries = append(queries, col.Where("applicantId", "==", actor.UID).
 				OrderBy("createdAt", firestore.Desc).Limit(listLimit))
 		case ScopeInbox:
-			queries = append(queries, col.Where("status", "in", []string{
-				models.StatusPendingSystem, models.StatusPendingProducer, models.StatusPendingCEO,
-			}).OrderBy("createdAt", firestore.Desc).Limit(listLimit))
+			queries = append(queries, col.Where("status", "in", models.PendingStatuses).
+				OrderBy("createdAt", firestore.Desc).Limit(listLimit))
 		default:
 			queries = append(queries, col.OrderBy("createdAt", firestore.Desc).Limit(listLimit))
 		}
@@ -338,10 +389,16 @@ func (s *RingiService) List(ctx context.Context, actor *models.User, scope ListS
 	slices.SortFunc(results, func(a, b models.RingiRequest) int {
 		return b.CreatedAt.Compare(a.CreatedAt)
 	})
-	if len(results) > listLimit {
+
+	// 上限に達した場合は打ち切るが、その事実を必ず呼び出し元へ伝える。
+	// 黙って切り捨てると「一覧に無い＝存在しない」と誤認される。
+	truncated := len(results) >= listLimit
+	if truncated {
 		results = results[:listLimit]
+		log.Printf("list truncated at %d items (uid=%s role=%s scope=%s)",
+			listLimit, actor.UID, actor.Role, scope)
 	}
-	return results, nil
+	return &ListResult{Items: results, Truncated: truncated}, nil
 }
 
 // Detail は稟議の詳細と承認履歴を返す。

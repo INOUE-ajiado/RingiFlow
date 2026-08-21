@@ -37,7 +37,10 @@ import { StatusBadge } from '../shared/status-badge';
     } @else if (request(); as req) {
       <article class="card panel">
         <header>
-          <app-status-badge [status]="req.status" />
+          <div class="head-row">
+            <span class="request-no">{{ req.requestNo }}</span>
+            <app-status-badge [status]="req.status" />
+          </div>
           <h1>{{ req.title }}</h1>
         </header>
 
@@ -132,6 +135,20 @@ import { StatusBadge } from '../shared/status-badge';
     .panel {
       padding: 1.75rem;
       margin-bottom: 1.25rem;
+    }
+
+    .head-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .request-no {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
     }
 
     header h1 {
@@ -296,6 +313,8 @@ export class RingiDetailComponent {
         return 'btn-warning';
       case 'reject':
         return 'btn-danger';
+      case 'withdraw':
+        return 'btn-secondary';
       default:
         return 'btn-primary';
     }

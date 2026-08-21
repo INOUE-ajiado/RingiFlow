@@ -410,6 +410,8 @@
                 記載内容に不備がある場合に用いる。申請者は内容を修正のうえ<strong>再申請が可能</strong>。再申請された稟議は <code>pending_system</code> から承認ルートをやり直す。</li>
             <li><strong>却下（<code>rejected</code>）：</strong>
                 申請自体を認めない場合に用いる<strong>終端ステータス</strong>。再申請は不可であり、必要な場合は改めて新規申請として起票し直す。</li>
+            <li><strong>取り下げ（<code>withdrawn</code>）：</strong>
+                申請者自身が申請を撤回する場合に用いる<strong>終端ステータス</strong>。誤申請や状況変化に対応するためのもので、決裁が確定する前（承認待ちまたは差し戻しの状態）であればいつでも実行できる。承認者による却下とは区別して記録する。</li>
         </ul>
         <div class="step-list">
             <div class="step-item"><span class="step-title">Step 1. 却下/差し戻し操作:</span>
@@ -500,7 +502,15 @@
                     <td><code>pending_system</code> (システム担当待ち)</td>
                 </tr>
                 <tr>
-                    <td><code>approved</code> / <code>rejected</code></td>
+                    <td><code>pending_system</code> / <code>pending_producer</code> /
+                        <code>pending_ceo</code> / <code>returned</code>
+                    </td>
+                    <td>申請者 (<code>applicant</code>) ※申請者本人のみ</td>
+                    <td>取り下げ (Withdraw)</td>
+                    <td><code>withdrawn</code> (取り下げ)</td>
+                </tr>
+                <tr>
+                    <td><code>approved</code> / <code>rejected</code> / <code>withdrawn</code></td>
                     <td>—</td>
                     <td>（終端・操作不可）</td>
                     <td>—</td>
@@ -607,7 +617,12 @@ E1234  →  E1234@ringiflow.ajiado.co.jp</code></pre>
                 <tr>
                     <td><code>id</code></td>
                     <td>String</td>
-                    <td>稟議書の一意なID（自動生成）。</td>
+                    <td>稟議書の一意なID（Firestoreが自動生成）。</td>
+                </tr>
+                <tr>
+                    <td><code>requestNo</code></td>
+                    <td>String</td>
+                    <td>人が読める稟議番号（例: <code>R-2026-0001</code>）。年ごとの連番で、4.4節のカウンタから申請と同一トランザクション内で採番するため重複しない。</td>
                 </tr>
                 <tr>
                     <td><code>title</code></td>
@@ -676,7 +691,7 @@ E1234  →  E1234@ringiflow.ajiado.co.jp</code></pre>
                     <td><code>action</code></td>
                     <td>String</td>
                     <td>実行された操作（<code>create</code>, <code>approve</code>, <code>reject</code>, <code>return</code>,
-                        <code>resubmit</code>）。
+                        <code>resubmit</code>, <code>withdraw</code>）。
                     </td>
                 </tr>
                 <tr>
@@ -735,6 +750,35 @@ service cloud.firestore {
             <li><code>audit_logs</code> コレクション: <code>requestId</code> (昇順) + <code>timestamp</code> (降順)</li>
         </ul>
 
+        <h3>4.4 採番用カウンタ (<code>counters</code> コレクション)</h3>
+        <p>稟議番号（<code>requestNo</code>）を年ごとの連番で払い出すためのカウンタ。ドキュメントIDは <code>ringi_{西暦}</code>
+            とし、年が変わると自動的に新しいカウンタが作られて連番が1から再開する。</p>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 25%;">フィールド名</th>
+                    <th style="width: 15%;">型</th>
+                    <th style="width: 60%;">説明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>value</code></td>
+                    <td>Number</td>
+                    <td>その年に払い出した最後の番号。</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="important-box">
+            <h4>【重要】採番は申請と同一トランザクション内で行う</h4>
+            <ul>
+                <li><strong>重複の防止：</strong>
+                    カウンタの読み取りと更新、稟議ドキュメントの作成を1つのトランザクションにまとめる。複数の申請が同時に発生した場合はカウンタの読み取りが競合し、Firestoreがトランザクションを再試行するため、同じ番号が2件に払い出されることはない。</li>
+                <li><strong>欠番の許容：</strong>
+                    トランザクションが失敗した場合、その番号は使われないまま欠番となる。稟議番号は一意な識別子であり連続性を保証するものではないため、欠番は許容する。</li>
+            </ul>
+        </div>
+
         <h2>5. バックエンドAPI設計 (Go)</h2>
         <p>Firestoreのセキュリティルールによる直接書き込みは制限し、状態変更を伴う操作は全てGo APIを経由させる。これにより、強固なトランザクションとビジネスロジックの集中管理を実現する。</p>
 
@@ -750,6 +794,7 @@ POST /api/v1/ringi/{id}/approve   # 稟議の承認
 POST /api/v1/ringi/{id}/return    # 稟議の差し戻し（申請者による再申請が可能）
 POST /api/v1/ringi/{id}/reject    # 稟議の却下（終端・再申請は不可）
 POST /api/v1/ringi/{id}/resubmit  # 差し戻された稟議の再申請（申請者本人のみ）
+POST /api/v1/ringi/{id}/withdraw  # 稟議の取り下げ（申請者本人のみ・終端）
 
 # リクエストBody例 (approve / return / reject)
 #   comment は return・reject では必須、approve では任意とする
@@ -776,6 +821,8 @@ POST /api/v1/ringi/{id}/resubmit  # 差し戻された稟議の再申請（申�
             は、フロントエンドが操作ボタンの表示判定に用いる権限ロールを取得するためのエンドポイントである。ロールをクライアント側で保持・判断させず常にサーバーから取得させることで、権限の詐称を防ぐ。</p>
         <p><code>GET /api/v1/ringi</code> は、4.2節の方針に基づきアクセスユーザーの <code>uid</code> と <code>role</code>
             をもとに閲覧可能な範囲（自身が申請したもの、または自身が承認すべきもの）へ必ず絞り込んだうえで返却する。</p>
+        <p>一覧には取得件数の上限を設ける。上限に達した場合はレスポンスの <code>truncated</code> を <code>true</code>
+            とし、フロントエンドは「一部が表示されていない」旨を明示する。<strong>黙って打ち切ると「一覧に無い＝存在しない」と誤認される</strong>ため、打ち切りの事実は必ず呼び出し元へ伝える。</p>
 
         <h3>5.2 トランザクション処理フロー（承認API詳細）</h3>
         <div class="step-list">
@@ -897,6 +944,13 @@ POST /api/v1/ringi/{id}/resubmit  # 差し戻された稟議の再申請（申�
                     <td>実装内容を反映。権限ロール取得用の <code>GET /api/v1/me</code>
                         を追加（5.1節）。クライアントのFirebase SDK利用がAuthenticationに限定されるため、AngularFireを導入せず公式
                         <code>firebase</code> パッケージを直接利用する方針へ変更（6.2節）。
+                    </td>
+                </tr>
+                <tr>
+                    <td>1.4</td>
+                    <td>2026-08-21</td>
+                    <td>稟議番号（<code>requestNo</code>）と採番用カウンタを追加（4.1/4.4節）。取り下げ（<code>withdrawn</code>）を状態遷移表とAPIに追加（3.2/3.3/5.1節）。一覧の件数上限到達を
+                        <code>truncated</code> で通知する仕様を明記（5.1節）。
                     </td>
                 </tr>
                 <tr>
