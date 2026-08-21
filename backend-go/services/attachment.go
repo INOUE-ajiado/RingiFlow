@@ -27,8 +27,8 @@ const (
 	// Cloud Run のリクエストサイズ上限（32MiB）に収まる値としている。
 	MaxAttachmentSize = 10 << 20
 
-	// maxAttachmentsPerRingi は1つの稟議に添付できる件数の上限。
-	maxAttachmentsPerRingi = 10
+	// MaxAttachmentsPerRingi は1つの稟議に添付できる件数の上限。
+	MaxAttachmentsPerRingi = 10
 
 	// maxFileNameLength はファイル名の最大長。
 	maxFileNameLength = 120
@@ -121,9 +121,9 @@ func (s *AttachmentService) Upload(ctx context.Context, actor *models.User, ring
 	if appErr := canModifyAttachments(actor, &req); appErr != nil {
 		return nil, appErr
 	}
-	if len(req.Attachments) >= maxAttachmentsPerRingi {
+	if len(req.Attachments) >= MaxAttachmentsPerRingi {
 		return nil, newError(http.StatusConflict, "too_many_attachments",
-			fmt.Sprintf("添付できるファイルは%d件までです。", maxAttachmentsPerRingi))
+			fmt.Sprintf("添付できるファイルは%d件までです。", MaxAttachmentsPerRingi))
 	}
 
 	now := time.Now().UTC()
@@ -179,9 +179,9 @@ func (s *AttachmentService) Upload(ctx context.Context, actor *models.User, ring
 		if appErr := canModifyAttachments(actor, &current); appErr != nil {
 			return appErr
 		}
-		if len(current.Attachments) >= maxAttachmentsPerRingi {
+		if len(current.Attachments) >= MaxAttachmentsPerRingi {
 			return newError(http.StatusConflict, "too_many_attachments",
-				fmt.Sprintf("添付できるファイルは%d件までです。", maxAttachmentsPerRingi))
+				fmt.Sprintf("添付できるファイルは%d件までです。", MaxAttachmentsPerRingi))
 		}
 
 		if err := tx.Update(docRef, []firestore.Update{

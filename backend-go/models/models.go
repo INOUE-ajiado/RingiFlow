@@ -192,3 +192,43 @@ type Attachment struct {
 func IsTerminal(status string) bool {
 	return status == StatusApproved || status == StatusRejected || status == StatusWithdrawn
 }
+
+// CEOApprovalThreshold は代表決裁を要する金額の下限（円）。
+//
+// この金額未満の稟議はプロデューサーの承認をもって決裁完了とし、
+// 代表の承認を経由しない。少額案件が代表に滞留するのを避けるための規定。
+const CEOApprovalThreshold int64 = 100000
+
+// ApprovalRoute は金額に応じた承認ステップの並びを返す。
+//
+// 金額は再申請時に変更されうるため、ルートは固定値として保持せず
+// 承認のたびにその時点の金額から求める。これにより差し戻し後に
+// 金額を修正した場合も、修正後の金額に応じたルートが適用される。
+func ApprovalRoute(amount int64) []string {
+	if amount >= CEOApprovalThreshold {
+		return []string{StatusPendingSystem, StatusPendingProducer, StatusPendingCEO}
+	}
+	return []string{StatusPendingSystem, StatusPendingProducer}
+}
+
+// NextAfterApprove は承認後のステータスを返す。
+// 現在が最終承認ステップの場合は決裁完了（approved）となる。
+// current がそのルート上に存在しない場合は false を返す。
+func NextAfterApprove(current string, amount int64) (string, bool) {
+	route := ApprovalRoute(amount)
+	for i, step := range route {
+		if step != current {
+			continue
+		}
+		if i == len(route)-1 {
+			return StatusApproved, true
+		}
+		return route[i+1], true
+	}
+	return "", false
+}
+
+// RequiresCEOApproval は代表決裁を要する金額かを判定する。
+func RequiresCEOApproval(amount int64) bool {
+	return amount >= CEOApprovalThreshold
+}

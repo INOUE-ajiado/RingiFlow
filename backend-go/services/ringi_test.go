@@ -19,12 +19,19 @@ func user(uid, role string) *models.User {
 	return &models.User{UID: uid, EmployeeID: "E0001", Name: "テスト太郎", Role: role}
 }
 
+// req は代表決裁を要する金額（閾値以上）の稟議を返す。
+// 金額によって承認ルートが変わるため、既定は最長ルートとする。
 func req(stat string) *models.RingiRequest {
+	return reqAmount(stat, 250000)
+}
+
+// reqAmount は金額を指定した稟議を返す。
+func reqAmount(stat string, amount int64) *models.RingiRequest {
 	return &models.RingiRequest{
 		ID:          "r-1",
 		Title:       "テスト稟議",
 		Content:     "内容",
-		Amount:      10000,
+		Amount:      amount,
 		ApplicantID: uidApplicant,
 		Status:      stat,
 	}
@@ -54,12 +61,12 @@ func TestEvaluateTransition_正常系(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			rule, err := evaluateTransition(req(c.status), c.actor, c.action, c.comment)
+			to, err := evaluateTransition(req(c.status), c.actor, c.action, c.comment)
 			if err != nil {
 				t.Fatalf("予期しないエラー: %v", err)
 			}
-			if rule.To != c.wantTo {
-				t.Errorf("遷移先: got %q, want %q", rule.To, c.wantTo)
+			if to != c.wantTo {
+				t.Errorf("遷移先: got %q, want %q", to, c.wantTo)
 			}
 		})
 	}
@@ -324,13 +331,13 @@ func TestEvaluateTransition_マスターは全工程を操作できる(t *testin
 		{models.StatusReturned, models.ActionResubmit, "", models.StatusPendingSystem},
 	}
 	for _, c := range cases {
-		rule, err := evaluateTransition(req(c.status), master, c.action, c.comment)
+		to, err := evaluateTransition(req(c.status), master, c.action, c.comment)
 		if err != nil {
 			t.Errorf("%s + %s が拒否された: %v", c.status, c.action, err)
 			continue
 		}
-		if rule.To != c.wantTo {
-			t.Errorf("%s + %s: got %q, want %q", c.status, c.action, rule.To, c.wantTo)
+		if to != c.wantTo {
+			t.Errorf("%s + %s: got %q, want %q", c.status, c.action, to, c.wantTo)
 		}
 	}
 }
@@ -383,13 +390,13 @@ func TestEvaluateTransition_取り下げは申請者本人のみ(t *testing.T) {
 		models.StatusPendingSystem, models.StatusPendingProducer,
 		models.StatusPendingCEO, models.StatusReturned,
 	} {
-		rule, err := evaluateTransition(req(from), owner, models.ActionWithdraw, "")
+		to, err := evaluateTransition(req(from), owner, models.ActionWithdraw, "")
 		if err != nil {
 			t.Errorf("%s からの取り下げが拒否された: %v", from, err)
 			continue
 		}
-		if rule.To != models.StatusWithdrawn {
-			t.Errorf("%s: got %q, want withdrawn", from, rule.To)
+		if to != models.StatusWithdrawn {
+			t.Errorf("%s: got %q, want withdrawn", from, to)
 		}
 
 		// 他人は取り下げられない
@@ -424,6 +431,120 @@ func TestEvaluateTransition_決裁済みは取り下げられない(t *testing.T
 	for _, from := range []string{models.StatusApproved, models.StatusRejected} {
 		if _, err := evaluateTransition(req(from), owner, models.ActionWithdraw, ""); err == nil {
 			t.Errorf("%s の稟議が取り下げられてしまう", from)
+		}
+	}
+}
+
+// --- 金額による承認ルート分岐 ---------------------------------------------
+
+func TestEvaluateTransition_少額はプロデューサー決裁で完了する(t *testing.T) {
+	const small = models.CEOApprovalThreshold - 1
+
+	to, err := evaluateTransition(reqAmount(models.StatusPendingSystem, small),
+		user(uidSysAdmin, models.RoleSystemAdmin), models.ActionApprove, "")
+	if err != nil {
+		t.Fatalf("システム担当の承認が拒否された: %v", err)
+	}
+	if to != models.StatusPendingProducer {
+		t.Errorf("got %q, want %q", to, models.StatusPendingProducer)
+	}
+
+	// プロデューサーの承認で決裁完了となり、代表を経由しない
+	to, err = evaluateTransition(reqAmount(models.StatusPendingProducer, small),
+		user(uidProducer, models.RoleProducer), models.ActionApprove, "")
+	if err != nil {
+		t.Fatalf("PDの承認が拒否された: %v", err)
+	}
+	if to != models.StatusApproved {
+		t.Errorf("少額案件がPD承認で完了しない: got %q, want %q", to, models.StatusApproved)
+	}
+}
+
+func TestEvaluateTransition_閾値以上は代表決裁を経由する(t *testing.T) {
+	const large = models.CEOApprovalThreshold
+
+	to, err := evaluateTransition(reqAmount(models.StatusPendingProducer, large),
+		user(uidProducer, models.RoleProducer), models.ActionApprove, "")
+	if err != nil {
+		t.Fatalf("PDの承認が拒否された: %v", err)
+	}
+	if to != models.StatusPendingCEO {
+		t.Errorf("got %q, want %q", to, models.StatusPendingCEO)
+	}
+
+	to, err = evaluateTransition(reqAmount(models.StatusPendingCEO, large),
+		user(uidCEO, models.RoleCEO), models.ActionApprove, "")
+	if err != nil {
+		t.Fatalf("代表の承認が拒否された: %v", err)
+	}
+	if to != models.StatusApproved {
+		t.Errorf("got %q, want %q", to, models.StatusApproved)
+	}
+}
+
+// 閾値ちょうどの金額は代表決裁を要する（以上／未満の境界）。
+func TestEvaluateTransition_閾値の境界(t *testing.T) {
+	cases := []struct {
+		amount int64
+		wantTo string
+	}{
+		{models.CEOApprovalThreshold - 1, models.StatusApproved},
+		{models.CEOApprovalThreshold, models.StatusPendingCEO},
+		{models.CEOApprovalThreshold + 1, models.StatusPendingCEO},
+		{0, models.StatusApproved},
+	}
+	for _, c := range cases {
+		to, err := evaluateTransition(reqAmount(models.StatusPendingProducer, c.amount),
+			user(uidProducer, models.RoleProducer), models.ActionApprove, "")
+		if err != nil {
+			t.Errorf("金額 %d が拒否された: %v", c.amount, err)
+			continue
+		}
+		if to != c.wantTo {
+			t.Errorf("金額 %d: got %q, want %q", c.amount, to, c.wantTo)
+		}
+	}
+}
+
+// 差し戻し後に金額を修正した場合、修正後の金額でルートが決まる。
+func TestEvaluateTransition_再申請後の金額でルートが決まる(t *testing.T) {
+	// 高額で申請 → 差し戻し → 少額に修正して再申請したケースを想定し、
+	// PD承認時点の金額が少額であれば代表を経由せず完了する。
+	to, err := evaluateTransition(reqAmount(models.StatusPendingProducer, 50000),
+		user(uidProducer, models.RoleProducer), models.ActionApprove, "")
+	if err != nil {
+		t.Fatalf("拒否された: %v", err)
+	}
+	if to != models.StatusApproved {
+		t.Errorf("減額後もCEOを経由している: got %q", to)
+	}
+}
+
+// 金額を減額したことで代表承認待ちがルート外になった稟議は、
+// 不整合として拒否し、勝手に決裁完了させない。
+func TestEvaluateTransition_ルート外のステータスは拒否する(t *testing.T) {
+	_, err := evaluateTransition(reqAmount(models.StatusPendingCEO, 1000),
+		user(uidCEO, models.RoleCEO), models.ActionApprove, "")
+	if err == nil {
+		t.Fatal("ルート外の承認が許可された")
+	}
+	if err.Code != "invalid_state_transition" {
+		t.Errorf("got %s, want invalid_state_transition", err.Code)
+	}
+}
+
+// 承認以外の遷移は金額の影響を受けない。
+func TestEvaluateTransition_差し戻しと却下は金額に依存しない(t *testing.T) {
+	for _, amount := range []int64{0, models.CEOApprovalThreshold - 1, models.CEOApprovalThreshold} {
+		to, err := evaluateTransition(reqAmount(models.StatusPendingProducer, amount),
+			user(uidProducer, models.RoleProducer), models.ActionReturn, "理由")
+		if err != nil || to != models.StatusReturned {
+			t.Errorf("金額 %d の差し戻し: got %q, err=%v", amount, to, err)
+		}
+		to, err = evaluateTransition(reqAmount(models.StatusPendingProducer, amount),
+			user(uidProducer, models.RoleProducer), models.ActionReject, "理由")
+		if err != nil || to != models.StatusRejected {
+			t.Errorf("金額 %d の却下: got %q, err=%v", amount, to, err)
 		}
 	}
 }

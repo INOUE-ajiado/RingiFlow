@@ -191,7 +191,7 @@ func (s *RingiService) Transition(ctx context.Context, actor *models.User, id, a
 		}
 
 		// Step 4: 状態遷移表による権限・ステータス整合性チェック
-		rule, appErr := evaluateTransition(&req, actor, action, in.Comment)
+		nextStatus, appErr := evaluateTransition(&req, actor, action, in.Comment)
 		if appErr != nil {
 			return appErr
 		}
@@ -199,7 +199,7 @@ func (s *RingiService) Transition(ctx context.Context, actor *models.User, id, a
 
 		// Step 5-6: 次ステータスの決定と更新
 		updates := []firestore.Update{
-			{Path: "status", Value: rule.To},
+			{Path: "status", Value: nextStatus},
 			{Path: "updatedAt", Value: now},
 		}
 		// 再申請時は申請内容の修正を許可する（基本設計書 3.2 Step3）。
@@ -226,7 +226,7 @@ func (s *RingiService) Transition(ctx context.Context, actor *models.User, id, a
 			return err
 		}
 
-		result = &TransitionResult{RequestID: id, NewStatus: rule.To, UpdatedAt: now}
+		result = &TransitionResult{RequestID: id, NewStatus: nextStatus, UpdatedAt: now}
 		return nil
 	})
 
@@ -247,10 +247,10 @@ func (s *RingiService) Transition(ctx context.Context, actor *models.User, id, a
 // Firestore に依存しない純粋関数として切り出しているのは、承認フローの正しさを
 // 左右する最も重要な判定であり、単体テストで網羅的に検証できるようにするため。
 // 判定順序は「遷移の存在 → 本人確認 → ロール確認 → コメント必須」の順とする。
-func evaluateTransition(req *models.RingiRequest, actor *models.User, action, comment string) (models.TransitionRule, *Error) {
+func evaluateTransition(req *models.RingiRequest, actor *models.User, action, comment string) (string, *Error) {
 	rule, ok := models.Transitions[models.TransitionKey{From: req.Status, Action: action}]
 	if !ok {
-		return rule, newError(http.StatusConflict, "invalid_state_transition",
+		return "", newError(http.StatusConflict, "invalid_state_transition",
 			"現在のステータスではこの操作を実行できません。他の承認者によって既に処理された可能性があります。")
 	}
 
@@ -258,21 +258,34 @@ func evaluateTransition(req *models.RingiRequest, actor *models.User, action, co
 	// 終端ステータスへの操作や未定義の遷移は引き続き拒否される。
 	if !models.IsMaster(actor.Role) {
 		if rule.RequireOwner && req.ApplicantID != actor.UID {
-			return rule, newError(http.StatusConflict, "permission_denied",
+			return "", newError(http.StatusConflict, "permission_denied",
 				"この操作は申請者本人のみが実行できます。")
 		}
 		if rule.RequiredRole != "" && rule.RequiredRole != actor.Role {
-			return rule, newError(http.StatusConflict, "permission_denied",
+			return "", newError(http.StatusConflict, "permission_denied",
 				"この稟議を処理する権限がありません。")
 		}
 	}
 
 	// コメント必須は権限ではなく業務ルールのため、マスターにも適用する。
 	if rule.CommentRequired && strings.TrimSpace(comment) == "" {
-		return rule, newError(http.StatusBadRequest, "comment_required",
+		return "", newError(http.StatusBadRequest, "comment_required",
 			"理由コメントの入力は必須です。")
 	}
-	return rule, nil
+
+	// 承認の遷移先は金額によって変わる（少額案件は代表決裁を経由しない）。
+	// 状態遷移表の To は最長ルートを表しており、実際の遷移先はここで確定させる。
+	if action == models.ActionApprove {
+		next, ok := models.NextAfterApprove(req.Status, req.Amount)
+		if !ok {
+			// 金額に対応する承認ルート上に現在のステータスが存在しない。
+			// 例: 少額へ減額された稟議が代表承認待ちで滞留している場合。
+			return "", newError(http.StatusConflict, "invalid_state_transition",
+				"この稟議の承認ルートと現在のステータスが一致しません。管理者にお問い合わせください。")
+		}
+		return next, nil
+	}
+	return rule.To, nil
 }
 
 // resubmitUpdates は再申請時に指定された申請内容の修正を検証し、

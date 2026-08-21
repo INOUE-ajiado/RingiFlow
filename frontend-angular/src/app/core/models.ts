@@ -193,3 +193,41 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/**
+ * 業務ルールの設定値。GET /api/v1/config から取得する。
+ *
+ * 金額の閾値などをクライアント側にも定数として持つと変更時に二重管理となり
+ * 食い違うため、判断の根拠は常にサーバーから配られた値を用いる。
+ */
+export interface AppConfig {
+  ceoApprovalThreshold: number;
+  maxAttachmentSize: number;
+  maxAttachments: number;
+}
+
+/** 承認ルートの1段階。 */
+export interface RouteStep {
+  status: RingiStatus;
+  label: string;
+}
+
+/**
+ * 金額に応じた承認ルートを返す。
+ * 閾値未満の稟議はプロデューサーの承認で決裁完了となり、代表を経由しない。
+ */
+export function approvalRoute(amount: number, threshold: number): RouteStep[] {
+  const steps: RouteStep[] = [
+    { status: 'pending_system', label: 'システム担当' },
+    { status: 'pending_producer', label: 'プロデューサー' },
+  ];
+  if (amount >= threshold) {
+    steps.push({ status: 'pending_ceo', label: '代表' });
+  }
+  return steps;
+}
+
+/** 代表決裁を要する金額かどうか。 */
+export function requiresCEOApproval(amount: number, threshold: number): boolean {
+  return amount >= threshold;
+}

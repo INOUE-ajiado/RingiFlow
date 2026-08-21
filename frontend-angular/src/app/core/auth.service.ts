@@ -9,7 +9,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../environments/environment';
 import { FIREBASE_AUTH } from './firebase';
-import { AppUser } from './models';
+import { AppConfig, AppUser } from './models';
 
 /**
  * 認証状態の管理。
@@ -38,6 +38,13 @@ export class AuthService {
   /** 自動ログインに失敗した場合のメッセージ。 */
   readonly error = signal<string | null>(null);
 
+  /**
+   * サーバーから配られる業務ルールの設定値。
+   * 金額の閾値などをクライアント側の定数にすると変更時に食い違うため、
+   * 常にサーバーの値を用いる。
+   */
+  readonly config = signal<AppConfig | null>(null);
+
   private readonly readyPromise = this.bootstrap();
 
   /** 自動ログインの完了を待つ。 */
@@ -52,7 +59,9 @@ export class AuthService {
         const { employeeId, password } = environment.masterUser;
         await signInWithEmailAndPassword(this.auth, toAuthEmail(employeeId), password);
       }
-      this.appUser.set(await this.fetchMe());
+      const [me, config] = await Promise.all([this.fetchMe(), this.fetchConfig()]);
+      this.appUser.set(me);
+      this.config.set(config);
     } catch (err) {
       this.error.set(bootstrapErrorMessage(err));
       this.appUser.set(null);
@@ -69,6 +78,10 @@ export class AuthService {
         resolve(user);
       });
     });
+  }
+
+  private fetchConfig(): Promise<AppConfig> {
+    return firstValueFrom(this.http.get<AppConfig>(`${environment.apiBaseUrl}/api/v1/config`));
   }
 
   private fetchMe(): Promise<AppUser> {

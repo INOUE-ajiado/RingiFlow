@@ -137,3 +137,68 @@ func TestWithdrawTransitions(t *testing.T) {
 		}
 	}
 }
+
+// TestApprovalRoute は金額に応じた承認ルートを検証する。
+func TestApprovalRoute(t *testing.T) {
+	small := ApprovalRoute(CEOApprovalThreshold - 1)
+	if len(small) != 2 {
+		t.Fatalf("少額ルートの段数: got %d, want 2 (%v)", len(small), small)
+	}
+	if small[len(small)-1] != StatusPendingProducer {
+		t.Errorf("少額ルートの最終段: got %q, want %q", small[len(small)-1], StatusPendingProducer)
+	}
+
+	large := ApprovalRoute(CEOApprovalThreshold)
+	if len(large) != 3 {
+		t.Fatalf("高額ルートの段数: got %d, want 3 (%v)", len(large), large)
+	}
+	if large[len(large)-1] != StatusPendingCEO {
+		t.Errorf("高額ルートの最終段: got %q, want %q", large[len(large)-1], StatusPendingCEO)
+	}
+
+	// どちらのルートもシステム担当から始まる
+	for _, route := range [][]string{small, large} {
+		if route[0] != StatusPendingSystem {
+			t.Errorf("ルートの起点: got %q, want %q", route[0], StatusPendingSystem)
+		}
+	}
+}
+
+func TestNextAfterApprove(t *testing.T) {
+	cases := []struct {
+		name    string
+		current string
+		amount  int64
+		wantTo  string
+		wantOK  bool
+	}{
+		{"少額: システム担当 -> PD", StatusPendingSystem, 50000, StatusPendingProducer, true},
+		{"少額: PD -> 決裁完了", StatusPendingProducer, 50000, StatusApproved, true},
+		{"少額: 代表はルート外", StatusPendingCEO, 50000, "", false},
+		{"高額: システム担当 -> PD", StatusPendingSystem, 500000, StatusPendingProducer, true},
+		{"高額: PD -> 代表", StatusPendingProducer, 500000, StatusPendingCEO, true},
+		{"高額: 代表 -> 決裁完了", StatusPendingCEO, 500000, StatusApproved, true},
+		{"承認待ち以外はルート外", StatusReturned, 500000, "", false},
+		{"決裁済みはルート外", StatusApproved, 500000, "", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			gotTo, gotOK := NextAfterApprove(c.current, c.amount)
+			if gotTo != c.wantTo || gotOK != c.wantOK {
+				t.Errorf("got (%q, %v), want (%q, %v)", gotTo, gotOK, c.wantTo, c.wantOK)
+			}
+		})
+	}
+}
+
+func TestRequiresCEOApproval(t *testing.T) {
+	if RequiresCEOApproval(CEOApprovalThreshold - 1) {
+		t.Error("閾値未満で代表決裁が要求された")
+	}
+	if !RequiresCEOApproval(CEOApprovalThreshold) {
+		t.Error("閾値ちょうどで代表決裁が要求されない")
+	}
+	if RequiresCEOApproval(0) {
+		t.Error("金額0で代表決裁が要求された")
+	}
+}

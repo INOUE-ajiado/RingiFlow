@@ -4,10 +4,12 @@ import {
   AppUser,
   RingiRequest,
   RingiStatus,
+  approvalRoute,
   availableActions,
   canModifyAttachments,
   formatFileSize,
   isTerminal,
+  requiresCEOApproval,
 } from './models';
 
 function user(role: AppUser['role'], uid = 'u-applicant'): AppUser {
@@ -179,5 +181,36 @@ describe('formatFileSize', () => {
     expect(formatFileSize(1536)).toBe('1.5 KB');
     expect(formatFileSize(1024 * 1024)).toBe('1.0 MB');
     expect(formatFileSize(10 * 1024 * 1024)).toBe('10.0 MB');
+  });
+});
+
+describe('金額による承認ルート', () => {
+  const THRESHOLD = 100000;
+
+  it('閾値未満はプロデューサーまでの2段階', () => {
+    const route = approvalRoute(THRESHOLD - 1, THRESHOLD);
+    expect(route.map((s) => s.status)).toEqual(['pending_system', 'pending_producer']);
+  });
+
+  it('閾値以上は代表までの3段階', () => {
+    const route = approvalRoute(THRESHOLD, THRESHOLD);
+    expect(route.map((s) => s.status)).toEqual([
+      'pending_system',
+      'pending_producer',
+      'pending_ceo',
+    ]);
+  });
+
+  it('境界値を正しく扱う', () => {
+    expect(requiresCEOApproval(THRESHOLD - 1, THRESHOLD)).toBe(false);
+    expect(requiresCEOApproval(THRESHOLD, THRESHOLD)).toBe(true);
+    expect(requiresCEOApproval(THRESHOLD + 1, THRESHOLD)).toBe(true);
+    expect(requiresCEOApproval(0, THRESHOLD)).toBe(false);
+  });
+
+  it('どのルートもシステム担当から始まる', () => {
+    for (const amount of [0, 50000, THRESHOLD, 1000000]) {
+      expect(approvalRoute(amount, THRESHOLD)[0].status).toBe('pending_system');
+    }
   });
 });

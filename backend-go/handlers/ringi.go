@@ -22,6 +22,7 @@ func NewRingiHandler(svc *services.RingiService) *RingiHandler {
 // 認証はすべてのエンドポイントで必須のため、呼び出し側で auth ミドルウェアを適用する。
 func (h *RingiHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/me", h.me)
+	mux.HandleFunc("GET /api/v1/config", h.config)
 	mux.HandleFunc("POST /api/v1/ringi", h.create)
 	mux.HandleFunc("GET /api/v1/ringi", h.list)
 	mux.HandleFunc("GET /api/v1/ringi/{id}", h.get)
@@ -41,6 +42,18 @@ func (h *RingiHandler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, user)
+}
+
+// config は画面が判定に用いる業務ルールの設定値を返す。
+//
+// 金額の閾値などをフロントエンド側にも定数として持たせると、変更時に
+// 二重管理となり食い違う。判断の根拠は常にサーバーが配る。
+func (h *RingiHandler) config(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ceoApprovalThreshold": models.CEOApprovalThreshold,
+		"maxAttachmentSize":    services.MaxAttachmentSize,
+		"maxAttachments":       services.MaxAttachmentsPerRingi,
+	})
 }
 
 func (h *RingiHandler) create(w http.ResponseWriter, r *http.Request) {

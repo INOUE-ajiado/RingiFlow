@@ -564,6 +564,43 @@ E1234  →  E1234@ringiflow.ajiado.co.jp</code></pre>
             </ul>
         </div>
 
+        <h3>3.6 金額による承認ルートの分岐</h3>
+        <p>少額案件が代表に滞留するのを避けるため、申請金額に応じて承認ルートを分岐させる。</p>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 30%;">金額</th>
+                    <th style="width: 70%;">承認ルート</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>10万円未満</td>
+                    <td>システム担当 → プロデューサー →
+                        <strong>決裁完了</strong>（代表を経由しない）
+                    </td>
+                </tr>
+                <tr>
+                    <td>10万円以上</td>
+                    <td>システム担当 → プロデューサー → 代表 → <strong>決裁完了</strong></td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="important-box">
+            <h4>【重要】ルートは承認のたびにその時点の金額から求める</h4>
+            <ul>
+                <li><strong>再申請による金額変更への追随：</strong>
+                    金額は差し戻し後の再申請で変更されうるため、ルートを申請時に固定して保持しない。承認のたびに現在の金額から遷移先を求めることで、減額された稟議は代表を経由せず、増額された稟議は代表決裁を要するようになる。</li>
+                <li><strong>ルート外のステータスは拒否する：</strong>
+                    金額の変更によって現在のステータスがルート上に存在しなくなった場合、勝手に決裁完了とはせず 409
+                    で拒否する。意図しない決裁を防ぐための措置である。</li>
+                <li><strong>閾値の配信：</strong> 判定に用いる閾値はサーバーが保持し、<code>GET /api/v1/config</code>
+                    でフロントエンドへ配る。クライアント側にも定数として持つと、変更時に二重管理となり食い違うため。</li>
+                <li><strong>影響範囲：</strong>
+                    分岐するのは承認（approve）の遷移先のみであり、差し戻し・却下・取り下げは金額の影響を受けない。</li>
+            </ul>
+        </div>
+
         <h2>4. データベース設計 (Cloud Firestore)</h2>
         <p>NoSQLデータベースであるFirestoreの特性を活かし、データアクセス効率とセキュリティを考慮してコレクションとルールを設計する。</p>
 
@@ -660,6 +697,11 @@ E1234  →  E1234@ringiflow.ajiado.co.jp</code></pre>
                     <td>現在の状態（<code>pending_system</code>, ... <code>approved</code> 等）。</td>
                 </tr>
                 <tr>
+                    <td><code>attachments</code></td>
+                    <td>Array</td>
+                    <td>添付ファイルのメタデータ（4.5節）。実体は Cloud Storage に置く。</td>
+                </tr>
+                <tr>
                     <td><code>createdAt</code></td>
                     <td>Timestamp</td>
                     <td>申請日時。</td>
@@ -691,7 +733,8 @@ E1234  →  E1234@ringiflow.ajiado.co.jp</code></pre>
                     <td><code>action</code></td>
                     <td>String</td>
                     <td>実行された操作（<code>create</code>, <code>approve</code>, <code>reject</code>, <code>return</code>,
-                        <code>resubmit</code>, <code>withdraw</code>）。
+                        <code>resubmit</code>, <code>withdraw</code>, <code>attach</code>,
+                        <code>detach</code>）。
                     </td>
                 </tr>
                 <tr>
@@ -779,6 +822,71 @@ service cloud.firestore {
             </ul>
         </div>
 
+        <h3>4.5 添付ファイル (Cloud Storage)</h3>
+        <p>稟議には見積書などのファイルを添付できる。メタデータは <code>ringi_requests</code> の
+            <code>attachments</code> に保持し、実体は Cloud Storage の専用バケットへ置く。
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 25%;">フィールド名</th>
+                    <th style="width: 15%;">型</th>
+                    <th style="width: 60%;">説明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>id</code></td>
+                    <td>String</td>
+                    <td>添付ファイルの一意なID（UUID）。</td>
+                </tr>
+                <tr>
+                    <td><code>fileName</code></td>
+                    <td>String</td>
+                    <td>表示用のファイル名。パス要素・制御文字・危険な文字を除去したもの。</td>
+                </tr>
+                <tr>
+                    <td><code>contentType</code></td>
+                    <td>String</td>
+                    <td>MIMEタイプ。許可制で、PDF・画像・Office文書・テキスト・ZIPのみ受け付ける。</td>
+                </tr>
+                <tr>
+                    <td><code>size</code></td>
+                    <td>Number</td>
+                    <td>バイト数。1件あたり10MBまで。</td>
+                </tr>
+                <tr>
+                    <td><code>storagePath</code></td>
+                    <td>String</td>
+                    <td>Cloud Storage 上の位置。クライアントへは公開しない。</td>
+                </tr>
+                <tr>
+                    <td><code>uploadedBy</code> / <code>uploadedByName</code></td>
+                    <td>String</td>
+                    <td>添付した利用者の <code>uid</code> と氏名。</td>
+                </tr>
+                <tr>
+                    <td><code>uploadedAt</code></td>
+                    <td>Timestamp</td>
+                    <td>添付日時。</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="important-box">
+            <h4>【重要】Firebase Storage ではなく専用バケットを用いる</h4>
+            <ul>
+                <li><strong>選定理由：</strong> 4.2節の方針によりクライアントからストレージへ直接アクセスさせないため、Firebase
+                    Storage のセキュリティルールを介する必要がない。一般公開経路を持たない Cloud Storage
+                    バケット（uniform bucket-level access と public access prevention を有効化）の方が適する。</li>
+                <li><strong>権限の一致：</strong>
+                    アップロード・ダウンロード・削除はすべてGo APIを経由する。ダウンロードの可否は稟議本体の閲覧権限と同じ規則で判定するため、<strong>稟議を閲覧できる利用者だけが添付も閲覧できる</strong>ことが保証される。</li>
+                <li><strong>変更できる範囲：</strong>
+                    添付は申請内容の一部であるため、追加・削除できるのは申請者本人かつ決裁が確定する前に限る。1稟議あたり10件まで。</li>
+                <li><strong>孤児ファイルの回避：</strong> 実体を書き込んだ後に Firestore
+                    の更新が失敗した場合は、書き込んだ実体を削除して参照されないファイルを残さない。</li>
+            </ul>
+        </div>
+
         <h2>5. バックエンドAPI設計 (Go)</h2>
         <p>Firestoreのセキュリティルールによる直接書き込みは制限し、状態変更を伴う操作は全てGo APIを経由させる。これにより、強固なトランザクションとビジネスロジックの集中管理を実現する。</p>
 
@@ -787,6 +895,7 @@ service cloud.firestore {
             の値とも1対1で対応する。</p>
         <pre><code># 主要なAPIエンドポイント構成
 GET  /api/v1/me                   # ログイン中ユーザーの氏名・社員ID・ロールの取得
+GET  /api/v1/config               # 業務ルールの設定値（金額の閾値・添付の上限）
 POST /api/v1/ringi                # 新規稟議の作成（申請）
 GET  /api/v1/ringi                # 稟議一覧の取得（クエリパラメータで絞り込み）
 GET  /api/v1/ringi/{id}           # 特定の稟議詳細と履歴（audit_logs）の取得
@@ -795,6 +904,11 @@ POST /api/v1/ringi/{id}/return    # 稟議の差し戻し（申請者による�
 POST /api/v1/ringi/{id}/reject    # 稟議の却下（終端・再申請は不可）
 POST /api/v1/ringi/{id}/resubmit  # 差し戻された稟議の再申請（申請者本人のみ）
 POST /api/v1/ringi/{id}/withdraw  # 稟議の取り下げ（申請者本人のみ・終端）
+
+# 添付ファイル
+POST   /api/v1/ringi/{id}/attachments                 # 添付（multipart/form-data, field=file）
+GET    /api/v1/ringi/{id}/attachments/{attachmentId}  # 取得（実体をストリーミング）
+DELETE /api/v1/ringi/{id}/attachments/{attachmentId}  # 削除
 
 # リクエストBody例 (approve / return / reject)
 #   comment は return・reject では必須、approve では任意とする
@@ -821,8 +935,23 @@ POST /api/v1/ringi/{id}/withdraw  # 稟議の取り下げ（申請者本人の�
             は、フロントエンドが操作ボタンの表示判定に用いる権限ロールを取得するためのエンドポイントである。ロールをクライアント側で保持・判断させず常にサーバーから取得させることで、権限の詐称を防ぐ。</p>
         <p><code>GET /api/v1/ringi</code> は、4.2節の方針に基づきアクセスユーザーの <code>uid</code> と <code>role</code>
             をもとに閲覧可能な範囲（自身が申請したもの、または自身が承認すべきもの）へ必ず絞り込んだうえで返却する。</p>
-        <p>一覧には取得件数の上限を設ける。上限に達した場合はレスポンスの <code>truncated</code> を <code>true</code>
-            とし、フロントエンドは「一部が表示されていない」旨を明示する。<strong>黙って打ち切ると「一覧に無い＝存在しない」と誤認される</strong>ため、打ち切りの事実は必ず呼び出し元へ伝える。</p>
+        <p>一覧はクエリパラメータで絞り込める。<code>scope</code>（閲覧範囲）、<code>status</code>（カンマ区切りで複数指定可）、<code>from</code>
+            / <code>to</code>（申請日、YYYY-MM-DD、日本時間。<code>to</code>
+            は指定日の終わりまでを含む）、<code>q</code>（稟議番号・タイトル・内容・申請者への部分一致）、<code>limit</code>、<code>cursor</code>。
+        </p>
+        <div class="important-box">
+            <h4>【重要】ページングとキーワード検索の扱い</h4>
+            <ul>
+                <li><strong>並び順の固定：</strong> 一覧は「申請日時の降順 →
+                    ドキュメントIDの降順」で並べる。カーソルはこの2つの値から作るため、同時刻の稟議が複数あってもページの境界で重複や取りこぼしが起きない。</li>
+                <li><strong>キーワード検索：</strong> Firestore
+                    は部分一致検索を提供しないため、条件に一致するドキュメントを順に読み取りながらサーバー側で絞り込む。読み取り量が際限なく増えないよう走査上限を設け、上限に達した場合は
+                    <code>truncated</code> を <code>true</code> として「調べきれていない可能性がある」旨を画面に明示する。
+                </li>
+                <li><strong>黙った打ち切りの禁止：</strong> 結果を無言で切り捨てると<strong>「一覧に無い＝存在しない」と誤認される</strong>。
+                    打ち切りの事実は必ず呼び出し元へ伝える。</li>
+            </ul>
+        </div>
 
         <h3>5.2 トランザクション処理フロー（承認API詳細）</h3>
         <div class="step-list">
@@ -944,6 +1073,14 @@ POST /api/v1/ringi/{id}/withdraw  # 稟議の取り下げ（申請者本人の�
                     <td>実装内容を反映。権限ロール取得用の <code>GET /api/v1/me</code>
                         を追加（5.1節）。クライアントのFirebase SDK利用がAuthenticationに限定されるため、AngularFireを導入せず公式
                         <code>firebase</code> パッケージを直接利用する方針へ変更（6.2節）。
+                    </td>
+                </tr>
+                <tr>
+                    <td>1.5</td>
+                    <td>2026-08-21</td>
+                    <td>骨格構築として4点を追加。一覧の絞り込み（ステータス・期間・キーワード）とカーソル方式のページングを規定（5.1節）。添付ファイルを追加し、専用のCloud
+                        Storageバケットを用いる方針とその理由を明記（4.1/4.5節）。金額による承認ルートの分岐を新設し、ルートを承認のたびに現在の金額から求める設計とした（3.6節）。業務ルールの設定値を配る
+                        <code>GET /api/v1/config</code> を追加（5.1節）。
                     </td>
                 </tr>
                 <tr>

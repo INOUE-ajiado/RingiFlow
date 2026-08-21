@@ -10,9 +10,12 @@ import {
   LogAction,
   RingiAction,
   RingiRequest,
+  RingiStatus,
+  approvalRoute,
   availableActions,
   canModifyAttachments,
   formatFileSize,
+  requiresCEOApproval,
 } from '../core/models';
 import { RingiService, apiErrorMessage } from '../core/ringi.service';
 import { ActionDialog } from '../shared/action-dialog';
@@ -66,6 +69,21 @@ import { StatusBadge } from '../shared/status-badge';
             <dd>{{ req.updatedAt | date: 'yyyy/MM/dd HH:mm' }}</dd>
           </div>
         </dl>
+
+        <section class="route">
+          <h2>承認ルート</h2>
+          <ol class="steps">
+            @for (step of route(); track step.status) {
+              <li [class.done]="stepDone(step.status)" [class.current]="req.status === step.status">
+                {{ step.label }}
+              </li>
+            }
+            <li class="final" [class.done]="req.status === 'approved'">決裁完了</li>
+          </ol>
+          @if (routeNote()) {
+            <p class="route-note">{{ routeNote() }}</p>
+          }
+        </section>
 
         <section class="content">
           <h2>申請内容</h2>
@@ -237,9 +255,61 @@ import { StatusBadge } from '../shared/status-badge';
 
     .content h2,
     .history h2,
-    .attachments h2 {
+    .attachments h2,
+    .route h2 {
       font-size: 1rem;
       margin: 0 0 0.75rem;
+    }
+
+    .route {
+      margin-top: 1.5rem;
+    }
+
+    .steps {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0;
+      padding: 0;
+    }
+
+    .steps li {
+      position: relative;
+      padding: 0.3rem 0.8rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--bg-page);
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .steps li + li::before {
+      content: '→';
+      margin-right: 0.5rem;
+      margin-left: -0.35rem;
+      color: var(--text-muted);
+    }
+
+    .steps li.done {
+      background: var(--success-bg);
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .steps li.current {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .route-note {
+      margin: 0.6rem 0 0;
+      font-size: 0.82rem;
+      color: var(--text-muted);
     }
 
     .attachments {
@@ -423,6 +493,25 @@ export class RingiDetailComponent {
 
   readonly attachments = computed(() => this.request()?.attachments ?? []);
 
+  /**
+   * 金額に応じた承認ルート。閾値はサーバーから配られた設定値を用いる。
+   * 金額は再申請時に変更されうるため、都度その時点の金額から求める。
+   */
+  readonly route = computed(() => {
+    const req = this.request();
+    const threshold = this.auth.config()?.ceoApprovalThreshold;
+    return req && threshold !== undefined ? approvalRoute(req.amount, threshold) : [];
+  });
+
+  readonly routeNote = computed(() => {
+    const req = this.request();
+    const threshold = this.auth.config()?.ceoApprovalThreshold;
+    if (!req || threshold === undefined) return '';
+    return requiresCEOApproval(req.amount, threshold)
+      ? `${threshold.toLocaleString()}円以上のため、代表決裁を要します。`
+      : `${threshold.toLocaleString()}円未満のため、プロデューサー承認をもって決裁完了となります。`;
+  });
+
   /** 添付の追加・削除が可能か（申請者本人かつ決裁確定前）。 */
   readonly canEditAttachments = computed(() => {
     const req = this.request();
@@ -447,6 +536,18 @@ export class RingiDetailComponent {
 
   fileSize(bytes: number): string {
     return formatFileSize(bytes);
+  }
+
+  /** その承認段階を通過済みか（現在位置より前にあるか）。 */
+  stepDone(status: RingiStatus): boolean {
+    const req = this.request();
+    if (!req) return false;
+    if (req.status === 'approved') return true;
+    const steps = this.route();
+    const currentIndex = steps.findIndex((s) => s.status === req.status);
+    const stepIndex = steps.findIndex((s) => s.status === status);
+    // 現在位置が承認待ちでない（差し戻し等）場合は通過判定を行わない
+    return currentIndex >= 0 && stepIndex >= 0 && stepIndex < currentIndex;
   }
 
   /** ファイル選択ダイアログで選ばれたファイルを添付する。 */

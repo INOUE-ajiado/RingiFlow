@@ -31,6 +31,8 @@
 - **差し戻し (`returned`)** … 申請者が修正して**再申請可能**。再申請時は `pending_system` からやり直す
 - **却下 (`rejected`)** … 終端ステータス。**再申請不可**
 - 各承認者は自身の担当ステータスで「承認 / 差し戻し / 却下」の3アクションを実行できる
+- **取り下げ (`withdrawn`)** … 申請者本人が決裁確定前にいつでも撤回できる終端ステータス
+- **金額による分岐** … 10万円未満はプロデューサー承認で決裁完了（代表を経由しない）。閾値は `GET /api/v1/config` が配る
 - 状態遷移表に定義のない遷移は Go API がすべて HTTP 409 で拒否する
 
 | ロール | 説明 |
@@ -48,6 +50,7 @@
 | プロジェクトID | `ringiflow-81f8d` |
 | ウェブアプリ | `RingiFlow Web` |
 | Firestore | `(default)` / Native / **asia-northeast1** |
+| 添付ストレージ | `ringiflow-81f8d-attachments` / **asia-northeast1** |
 | Authentication | メール/パスワード |
 | Hosting サイト | `ringiflow-81f8d` |
 
@@ -70,14 +73,25 @@
 
 アカウント発行とロール割り当ては**管理者のみ**が行う（セルフ登録画面は設けない）。
 
+### 主な機能
+
+- 稟議番号の自動採番（`R-2026-0001` 形式。同時申請でも重複しない）
+- 一覧の絞り込み（ステータス・期間・キーワード）とカーソル方式のページング
+- 添付ファイル（PDF・画像・Office文書等、10MBまで・1稟議10件まで）
+- 金額による承認ルートの分岐
+- 監査ログ（申請・承認・差し戻し・却下・再申請・取り下げ・添付・削除）
+
 ### データアクセス方針
 
 Firestore セキュリティルールは読み書きともに全面禁止（`allow read, write: if false`）。閲覧範囲の絞り込みを含め、すべてのデータアクセスは Go バックエンドAPI（Admin SDK）を経由する。クライアントSDKによるリアルタイム購読（`onSnapshot`）は利用しない。
+
+添付ファイルの実体は専用の Cloud Storage バケット（`ringiflow-81f8d-attachments`）に置く。一般公開経路を持たない設定（uniform bucket-level access / public access prevention）とし、アップロード・ダウンロード・削除はすべてAPIを経由する。
 
 ## API エンドポイント
 
 ```
 GET  /api/v1/me                   # ログイン中ユーザーの氏名・社員ID・ロール
+GET  /api/v1/config               # 業務ルールの設定値（金額の閾値・添付の上限）
 POST /api/v1/ringi                # 新規稟議の作成（申請）
 GET  /api/v1/ringi                # 稟議一覧の取得
 GET  /api/v1/ringi/{id}           # 詳細と履歴（audit_logs）の取得
@@ -85,6 +99,11 @@ POST /api/v1/ringi/{id}/approve   # 承認
 POST /api/v1/ringi/{id}/return    # 差し戻し（再申請可能）
 POST /api/v1/ringi/{id}/reject    # 却下（終端）
 POST /api/v1/ringi/{id}/resubmit  # 再申請（申請者本人のみ）
+POST /api/v1/ringi/{id}/withdraw  # 取り下げ（申請者本人のみ・終端）
+
+POST   /api/v1/ringi/{id}/attachments                 # 添付
+GET    /api/v1/ringi/{id}/attachments/{attachmentId}  # 取得
+DELETE /api/v1/ringi/{id}/attachments/{attachmentId}  # 削除
 ```
 
 ## ディレクトリ構成
@@ -193,6 +212,7 @@ npm start
 | `PORT` | `8080` | 待ち受けポート |
 | `FIREBASE_PROJECT_ID` | `ringiflow-81f8d` | Firebase プロジェクトID |
 | `ALLOWED_ORIGINS` | `http://localhost:4200` | CORS 許可オリジン（カンマ区切り） |
+| `STORAGE_BUCKET` | `ringiflow-81f8d-attachments` | 添付ファイルの保存先バケット |
 
 ## テスト
 

@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
-import { RingiRequest } from '../core/models';
+import { RingiRequest, requiresCEOApproval } from '../core/models';
+import { AuthService } from '../core/auth.service';
 import { RingiService, apiErrorMessage } from '../core/ringi.service';
 
 /**
@@ -56,6 +58,9 @@ import { RingiService, apiErrorMessage } from '../core/ringi.service';
           />
           @if (isInvalid('amount')) {
             <p class="field-error">0以上の数値を入力してください。</p>
+          }
+          @if (routeHint()) {
+            <p class="route-hint">{{ routeHint() }}</p>
           }
         </div>
 
@@ -127,6 +132,12 @@ import { RingiService, apiErrorMessage } from '../core/ringi.service';
       font-weight: 600;
     }
 
+    .route-hint {
+      margin: 0.4rem 0 0;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
     .error-message {
       margin-bottom: 1rem;
     }
@@ -141,6 +152,7 @@ export class RingiCreateComponent {
   private readonly fb = inject(FormBuilder);
   private readonly ringi = inject(RingiService);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
 
   /** ルートパラメータ。指定された場合は差し戻し稟議の再申請として扱う。 */
   readonly id = input<string | undefined>(undefined);
@@ -157,6 +169,23 @@ export class RingiCreateComponent {
     title: ['', [Validators.required, Validators.maxLength(100)]],
     amount: [0, [Validators.required, Validators.min(0)]],
     content: ['', Validators.required],
+  });
+
+  private readonly amountValue = toSignal(this.form.controls.amount.valueChanges, {
+    initialValue: this.form.controls.amount.value,
+  });
+
+  /**
+   * 入力中の金額に応じて代表決裁の要否を知らせる。
+   * 閾値はサーバーから配られた設定値を用いる（クライアントに定数を持たない）。
+   */
+  readonly routeHint = computed(() => {
+    const threshold = this.auth.config()?.ceoApprovalThreshold;
+    if (threshold === undefined) return '';
+    const amount = Number(this.amountValue() ?? 0);
+    return requiresCEOApproval(amount, threshold)
+      ? `${threshold.toLocaleString()}円以上のため、代表決裁まで進みます。`
+      : `${threshold.toLocaleString()}円未満のため、プロデューサー承認で決裁完了となります。`;
   });
 
   constructor() {
