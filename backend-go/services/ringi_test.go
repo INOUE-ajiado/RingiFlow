@@ -305,3 +305,72 @@ func TestCanView(t *testing.T) {
 		}
 	})
 }
+
+// --- マスターロール（テスト運用専用） -------------------------------------
+
+func TestEvaluateTransition_マスターは全工程を操作できる(t *testing.T) {
+	master := user("uid-master", models.RoleMaster)
+	cases := []struct {
+		status  string
+		action  string
+		comment string
+		wantTo  string
+	}{
+		{models.StatusPendingSystem, models.ActionApprove, "", models.StatusPendingProducer},
+		{models.StatusPendingProducer, models.ActionApprove, "", models.StatusPendingCEO},
+		{models.StatusPendingCEO, models.ActionApprove, "", models.StatusApproved},
+		{models.StatusPendingSystem, models.ActionReturn, "理由", models.StatusReturned},
+		{models.StatusPendingCEO, models.ActionReject, "理由", models.StatusRejected},
+		{models.StatusReturned, models.ActionResubmit, "", models.StatusPendingSystem},
+	}
+	for _, c := range cases {
+		rule, err := evaluateTransition(req(c.status), master, c.action, c.comment)
+		if err != nil {
+			t.Errorf("%s + %s が拒否された: %v", c.status, c.action, err)
+			continue
+		}
+		if rule.To != c.wantTo {
+			t.Errorf("%s + %s: got %q, want %q", c.status, c.action, rule.To, c.wantTo)
+		}
+	}
+}
+
+// マスターであっても状態遷移表そのものは迂回しない。
+func TestEvaluateTransition_マスターでも終端ステータスは操作できない(t *testing.T) {
+	master := user("uid-master", models.RoleMaster)
+	for _, stat := range []string{models.StatusApproved, models.StatusRejected} {
+		for _, action := range []string{models.ActionApprove, models.ActionReject, models.ActionReturn, models.ActionResubmit} {
+			if _, err := evaluateTransition(req(stat), master, action, "コメント"); err == nil {
+				t.Errorf("マスターが %s に対して %s を実行できてしまう", stat, action)
+			}
+		}
+	}
+}
+
+// コメント必須は権限ではなく業務ルールのため、マスターにも適用される。
+func TestEvaluateTransition_マスターにもコメント必須が適用される(t *testing.T) {
+	master := user("uid-master", models.RoleMaster)
+	for _, action := range []string{models.ActionReturn, models.ActionReject} {
+		_, err := evaluateTransition(req(models.StatusPendingSystem), master, action, "")
+		if err == nil {
+			t.Errorf("マスターがコメントなしで %s を実行できてしまう", action)
+			continue
+		}
+		if err.Code != "comment_required" {
+			t.Errorf("%s: got %s, want comment_required", action, err.Code)
+		}
+	}
+}
+
+func TestCanView_マスターは全件閲覧できる(t *testing.T) {
+	master := user("uid-master", models.RoleMaster)
+	for _, stat := range []string{
+		models.StatusPendingSystem, models.StatusPendingProducer, models.StatusPendingCEO,
+		models.StatusApproved, models.StatusRejected, models.StatusReturned,
+	} {
+		// 申請者が別人（uidApplicant）の稟議でも閲覧できる
+		if !canView(master, req(stat), nil) {
+			t.Errorf("マスターが %s の稟議を閲覧できない", stat)
+		}
+	}
+}

@@ -528,6 +528,32 @@ E1234  →  E1234@ringiflow.ajiado.co.jp</code></pre>
             </ul>
         </div>
 
+        <h3>3.5 テスト運用時のマスターロール（暫定措置）</h3>
+        <p>本システムは当面スタンドアロンのテストシステムとして運用し、<strong>認証・権限は最終的に統合先システムから受け取る</strong>方針である。それまでの間はシステムの骨格の構築・検証を優先するため、以下の暫定措置をとる。</p>
+        <ul>
+            <li><strong>ログイン画面を設けない：</strong> フロントエンドは起動時に <code>master</code>
+                ロールのマスターユーザーで自動ログインする。3.4節の社員ID変換ルールと Firebase Authentication
+                の仕組みはそのまま利用する。</li>
+            <li><strong>マスターロールによる全工程の代行：</strong> <code>master</code>
+                ロールは担当者判定（<code>RequiredRole</code> および申請者本人であることの確認）を迂回し、単独で申請から最終決裁までのすべての操作を行える。</li>
+            <li><strong>閲覧範囲：</strong> <code>master</code> はすべての稟議を閲覧できる。</li>
+        </ul>
+        <div class="important-box">
+            <h4>【重要】状態遷移表そのものは迂回しない</h4>
+            <ul>
+                <li><strong>迂回するのは担当者判定のみ：</strong> 3.3節の状態遷移表に定義のない遷移は、<code>master</code>
+                    であっても引き続き拒否される。終端ステータス（<code>approved</code> /
+                    <code>rejected</code>）への操作も同様に不可である。
+                </li>
+                <li><strong>業務ルールは適用される：</strong>
+                    差し戻し・却下における理由コメントの必須条件は権限ではなく業務ルールであるため、<code>master</code> にも適用する。</li>
+                <li><strong>統合時の戻し方：</strong> 状態遷移表と権限判定のロジックは変更していないため、<code>master</code>
+                    ロールの付与をやめ、フロントエンドの自動ログインを実際の認証へ差し替えるだけで通常の権限制御に戻る。</li>
+                <li><strong>秘密情報にはできない：</strong>
+                    マスターユーザーの認証情報はフロントエンドのビルド成果物に含まれるため、秘匿できない。テスト運用専用の措置であり、統合時には必ず撤去すること。</li>
+            </ul>
+        </div>
+
         <h2>4. データベース設計 (Cloud Firestore)</h2>
         <p>NoSQLデータベースであるFirestoreの特性を活かし、データアクセス効率とセキュリティを考慮してコレクションとルールを設計する。</p>
 
@@ -561,7 +587,8 @@ E1234  →  E1234@ringiflow.ajiado.co.jp</code></pre>
                     <td><code>role</code></td>
                     <td>String</td>
                     <td>権限ロール（<code>applicant</code>, <code>system_admin</code>, <code>producer</code>,
-                        <code>ceo</code>）。
+                        <code>ceo</code>, <code>master</code>）。<code>master</code>
+                        はテスト運用専用（3.5節）。
                     </td>
                 </tr>
             </tbody>
@@ -788,10 +815,6 @@ POST /api/v1/ringi/{id}/resubmit  # 差し戻された稟議の再申請（申�
             </thead>
             <tbody>
                 <tr>
-                    <td><code>AuthLoginComponent</code></td>
-                    <td>社員IDとパスワードによるログイン画面。入力された社員IDを認証用メールアドレスへ変換し（3.4節）、Firebase Authで認証する。</td>
-                </tr>
-                <tr>
                     <td><code>RingiDashboardComponent</code></td>
                     <td>自分に関連する稟議一覧を表示するホーム画面。申請中/承認待ちなどのタブを表示。</td>
                 </tr>
@@ -811,10 +834,12 @@ POST /api/v1/ringi/{id}/resubmit  # 差し戻された稟議の再申請（申�
             </tbody>
         </table>
 
+        <p>3.5節の暫定措置により<strong>ログイン画面（<code>AuthLoginComponent</code>）は設けていない</strong>。起動時の自動ログインの待機表示と失敗時のエラー表示はアプリケーションシェルが担当する。統合時に実際の認証を導入する際は、ログイン相当の画面とルートガードをここへ追加する。</p>
+
         <h3>6.2 サービス（Service）構成</h3>
         <ul>
             <li><strong><code>AuthService</code></strong>: Firebase Authのログイン状態を監視し、現在のユーザー情報とJWTトークンを取得する。3.4節の社員ID
-                → 認証用メールアドレスの変換もここで行う。</li>
+                → 認証用メールアドレスの変換もここで行う。現状は3.5節の暫定措置により、起動時にマスターユーザーで自動ログインする。</li>
             <li><strong><code>RingiService</code></strong>:
                 HttpClientを用いてGoバックエンドAPIとの通信（申請、承認、差し戻し、却下、再申請、一覧・詳細取得）を担う。<strong>読み取りを含むすべてのデータアクセスは本サービスに一本化する。</strong>
             </li>
@@ -872,6 +897,14 @@ POST /api/v1/ringi/{id}/resubmit  # 差し戻された稟議の再申請（申�
                     <td>実装内容を反映。権限ロール取得用の <code>GET /api/v1/me</code>
                         を追加（5.1節）。クライアントのFirebase SDK利用がAuthenticationに限定されるため、AngularFireを導入せず公式
                         <code>firebase</code> パッケージを直接利用する方針へ変更（6.2節）。
+                    </td>
+                </tr>
+                <tr>
+                    <td>1.3</td>
+                    <td>2026-08-21</td>
+                    <td>テスト運用時の暫定措置を追加（3.5節を新設）。統合先システムから認証・権限を受け取るまでの間、ログイン画面を廃止し
+                        <code>master</code>
+                        ロールのマスターユーザーによる自動ログインで全工程を操作できるようにする。状態遷移表と権限判定のロジックは変更せず、担当者判定のみを迂回する設計とした（4.1/6.1/6.2節）。
                     </td>
                 </tr>
             </tbody>

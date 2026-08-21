@@ -14,7 +14,13 @@ export type RingiStatus =
   | 'rejected'
   | 'returned';
 
-export type Role = 'applicant' | 'system_admin' | 'producer' | 'ceo';
+/**
+ * 権限ロール。
+ *
+ * 'master' は全工程を単独で操作できるテスト運用専用のロール。統合先システムから
+ * 認証・権限を受け取るまでの暫定措置であり、統合時には付与をやめる。
+ */
+export type Role = 'applicant' | 'system_admin' | 'producer' | 'ceo' | 'master';
 
 export type RingiAction = 'approve' | 'return' | 'reject' | 'resubmit';
 
@@ -61,6 +67,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   system_admin: 'システム担当',
   producer: 'プロデューサー',
   ceo: '代表',
+  master: 'マスター（全権限）',
 };
 
 export const ACTION_LABELS: Record<RingiAction | 'create', string> = {
@@ -110,6 +117,11 @@ const TRANSITIONS: Partial<Record<RingiStatus, TransitionRule[]>> = {
 /** 指定ユーザーがこの稟議に対して実行できる操作を返す。 */
 export function availableActions(request: RingiRequest, user: AppUser): RingiAction[] {
   const rules = TRANSITIONS[request.status] ?? [];
+  // マスターロールは担当者判定を迂回し、そのステータスで定義された操作をすべて行える。
+  // 状態遷移表そのものは迂回しないため、終端ステータスでは何も表示されない。
+  if (isMaster(user.role)) {
+    return rules.map((rule) => rule.action);
+  }
   return rules
     .filter((rule) => {
       if (rule.owner && request.applicantId !== user.uid) return false;
@@ -119,12 +131,17 @@ export function availableActions(request: RingiRequest, user: AppUser): RingiAct
     .map((rule) => rule.action);
 }
 
+/** 全工程を操作できるテスト運用専用ロールかどうか。 */
+export function isMaster(role: Role): boolean {
+  return role === 'master';
+}
+
 /** 終端ステータス（これ以上の操作ができない）かどうか。 */
 export function isTerminal(status: RingiStatus): boolean {
   return status === 'approved' || status === 'rejected';
 }
 
-/** 承認権限を持つロールかどうか（applicant 以外の3ロール）。 */
+/** 承認権限を持つロールかどうか（applicant 以外）。 */
 export function hasApprovalRole(role: Role): boolean {
-  return role === 'system_admin' || role === 'producer' || role === 'ceo';
+  return role === 'system_admin' || role === 'producer' || role === 'ceo' || role === 'master';
 }

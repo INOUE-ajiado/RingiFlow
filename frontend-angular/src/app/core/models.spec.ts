@@ -77,3 +77,36 @@ describe('isTerminal', () => {
     expect(isTerminal('pending_ceo')).toBe(false);
   });
 });
+
+describe('マスターロール', () => {
+  it('各承認待ちステータスで全操作を提示する', () => {
+    const master = user('master', 'uid-master');
+    expect(availableActions(request('pending_system'), master)).toEqual([
+      'approve',
+      'return',
+      'reject',
+    ]);
+    expect(availableActions(request('pending_producer'), master)).toEqual([
+      'approve',
+      'return',
+      'reject',
+    ]);
+    expect(availableActions(request('pending_ceo'), master)).toEqual([
+      'approve',
+      'return',
+      'reject',
+    ]);
+  });
+
+  it('他者が申請した差し戻し稟議でも再申請を提示する', () => {
+    const master = user('master', 'uid-master');
+    expect(availableActions(request('returned', 'uid-someone-else'), master)).toEqual(['resubmit']);
+  });
+
+  // 状態遷移表そのものは迂回しない
+  it('終端ステータスでは操作を提示しない', () => {
+    const master = user('master', 'uid-master');
+    expect(availableActions(request('approved'), master)).toEqual([]);
+    expect(availableActions(request('rejected'), master)).toEqual([]);
+  });
+});

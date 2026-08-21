@@ -22,6 +22,16 @@ const (
 	RoleSystemAdmin = "system_admin"
 	RoleProducer    = "producer"
 	RoleCEO         = "ceo"
+
+	// RoleMaster は全工程を単独で操作できるテスト運用専用のロール。
+	//
+	// 本システムは当面スタンドアロンのテストシステムとして運用し、認証・権限は
+	// 統合先システムから受け取る想定である。それまでの間、承認フローの構造を
+	// 検証できるようマスターユーザー1名で全ロールの操作を代行する。
+	//
+	// 状態遷移表（Transitions）自体は変更せず、ロール判定のみを迂回する設計と
+	// しているため、統合時は本ロールの付与をやめるだけで通常の権限制御に戻る。
+	RoleMaster = "master"
 )
 
 // 監査ログのアクション（基本設計書 4.1節）
@@ -123,8 +133,13 @@ func PendingStatusForRole(role string) (string, bool) {
 // IsValidRole は role が定義済みのロールかを判定する。
 func IsValidRole(role string) bool {
 	switch role {
-	case RoleApplicant, RoleSystemAdmin, RoleProducer, RoleCEO:
+	case RoleApplicant, RoleSystemAdmin, RoleProducer, RoleCEO, RoleMaster:
 		return true
 	}
 	return false
+}
+
+// IsMaster は全工程を操作できるテスト運用専用ロールかを判定する。
+func IsMaster(role string) bool {
+	return role == RoleMaster
 }

@@ -208,14 +208,21 @@ func evaluateTransition(req *models.RingiRequest, actor *models.User, action, co
 		return rule, newError(http.StatusConflict, "invalid_state_transition",
 			"現在のステータスではこの操作を実行できません。他の承認者によって既に処理された可能性があります。")
 	}
-	if rule.RequireOwner && req.ApplicantID != actor.UID {
-		return rule, newError(http.StatusConflict, "permission_denied",
-			"この操作は申請者本人のみが実行できます。")
+
+	// マスターロールは担当者判定のみを迂回する。状態遷移表そのものは迂回しないため、
+	// 終端ステータスへの操作や未定義の遷移は引き続き拒否される。
+	if !models.IsMaster(actor.Role) {
+		if rule.RequireOwner && req.ApplicantID != actor.UID {
+			return rule, newError(http.StatusConflict, "permission_denied",
+				"この操作は申請者本人のみが実行できます。")
+		}
+		if rule.RequiredRole != "" && rule.RequiredRole != actor.Role {
+			return rule, newError(http.StatusConflict, "permission_denied",
+				"この稟議を処理する権限がありません。")
+		}
 	}
-	if rule.RequiredRole != "" && rule.RequiredRole != actor.Role {
-		return rule, newError(http.StatusConflict, "permission_denied",
-			"この稟議を処理する権限がありません。")
-	}
+
+	// コメント必須は権限ではなく業務ルールのため、マスターにも適用する。
 	if rule.CommentRequired && strings.TrimSpace(comment) == "" {
 		return rule, newError(http.StatusBadRequest, "comment_required",
 			"理由コメントの入力は必須です。")
@@ -270,14 +277,31 @@ func (s *RingiService) List(ctx context.Context, actor *models.User, scope ListS
 	col := s.fs.Collection(collectionRingi)
 
 	var queries []firestore.Query
-	if scope == ScopeMine || scope == ScopeAll {
-		queries = append(queries, col.Where("applicantId", "==", actor.UID).
-			OrderBy("createdAt", firestore.Desc).Limit(listLimit))
-	}
-	if scope == ScopeInbox || scope == ScopeAll {
-		if pending, ok := models.PendingStatusForRole(actor.Role); ok {
-			queries = append(queries, col.Where("status", "==", pending).
+	switch {
+	case models.IsMaster(actor.Role):
+		// マスターロールは全工程を代行するため、絞り込みの基準が異なる。
+		switch scope {
+		case ScopeMine:
+			queries = append(queries, col.Where("applicantId", "==", actor.UID).
 				OrderBy("createdAt", firestore.Desc).Limit(listLimit))
+		case ScopeInbox:
+			queries = append(queries, col.Where("status", "in", []string{
+				models.StatusPendingSystem, models.StatusPendingProducer, models.StatusPendingCEO,
+			}).OrderBy("createdAt", firestore.Desc).Limit(listLimit))
+		default:
+			queries = append(queries, col.OrderBy("createdAt", firestore.Desc).Limit(listLimit))
+		}
+
+	default:
+		if scope == ScopeMine || scope == ScopeAll {
+			queries = append(queries, col.Where("applicantId", "==", actor.UID).
+				OrderBy("createdAt", firestore.Desc).Limit(listLimit))
+		}
+		if scope == ScopeInbox || scope == ScopeAll {
+			if pending, ok := models.PendingStatusForRole(actor.Role); ok {
+				queries = append(queries, col.Where("status", "==", pending).
+					OrderBy("createdAt", firestore.Desc).Limit(listLimit))
+			}
 		}
 	}
 
@@ -362,6 +386,10 @@ func (s *RingiService) Get(ctx context.Context, actor *models.User, id string) (
 //
 // これにより applicant ロールが他者の稟議を閲覧することはできない。
 func canView(actor *models.User, req *models.RingiRequest, history []models.AuditLog) bool {
+	// マスターロールは全工程を代行するため、すべての稟議を閲覧できる。
+	if models.IsMaster(actor.Role) {
+		return true
+	}
 	if req.ApplicantID == actor.UID {
 		return true
 	}

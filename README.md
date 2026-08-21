@@ -39,6 +39,7 @@
 | `system_admin` | システム担当 |
 | `producer` | プロデューサー |
 | `ceo` | 代表 |
+| `master` | **テスト運用専用**。全工程を単独で操作できる（下記参照） |
 
 ## Firebase プロジェクト
 
@@ -50,9 +51,18 @@
 | Authentication | メール/パスワード |
 | Hosting サイト | `ringiflow-81f8d` |
 
-### ログイン方式
+### 認証（現状はテスト運用モード）
 
-ユーザーが入力するのは**社員IDとパスワードのみ**。Angular側で社員IDを認証用メールアドレスへ変換して Firebase Auth に渡す。
+本システムは当面スタンドアロンで運用し、**認証・権限は最終的に統合先システムから受け取る**方針。それまではシステムの骨格構築を優先し、以下の暫定措置をとっている。
+
+- **ログイン画面は設けていない。** 起動すると `master` ロールのマスターユーザーで自動ログインし、すぐ稟議一覧が表示される
+- **マスターロールは全工程を単独で操作できる。** 申請から最終決裁まで一人で通せるため、承認フローの検証が可能
+- **状態遷移表そのものは迂回しない。** 終端ステータスへの操作や未定義の遷移は `master` でも409で拒否され、差し戻し・却下のコメント必須も適用される
+- **統合時の戻し方**: `master` ロールの付与をやめ、`AuthService` の自動ログインを実際の認証へ差し替えるだけで通常の権限制御に戻る
+
+> ⚠️ マスターユーザーの認証情報は `environment.ts` に記述され、ビルド成果物に含まれるため**秘匿できない**。テスト運用専用の措置であり、統合時には必ず撤去すること。
+
+認証基盤（Firebase Auth / JWT検証 / 社員IDのメールアドレス変換）はそのまま残してある。Angular側で社員IDを認証用メールアドレスへ変換して Firebase Auth に渡す。
 
 ```
 {社員ID}@ringiflow.ajiado.co.jp     例: E1234 -> E1234@ringiflow.ajiado.co.jp
@@ -138,6 +148,14 @@ firebase deploy --only firestore:rules,firestore:indexes
 
 ```bash
 cd backend-go
+go run ./cmd/useradmin create -employee MASTER -name "マスター運用" -role master -password "RingiFlow-Master-2026"
+```
+
+これがフロントエンドの自動ログイン先になる。`environment.ts` の `masterUser` と社員ID・パスワードを一致させること。
+
+ロール別の挙動を個別に確認したい場合は、通常ロールのアカウントも作れる（画面からは切り替えられないため、API直叩き用）。
+
+```bash
 go run ./cmd/useradmin create -employee E0001 -name "申請 太郎"   -role applicant
 go run ./cmd/useradmin create -employee E0002 -name "システム 花子" -role system_admin
 go run ./cmd/useradmin create -employee E0003 -name "制作 次郎"   -role producer
@@ -166,7 +184,7 @@ cd frontend-angular
 npm start
 ```
 
-`http://localhost:4200` を開き、発行した社員IDとパスワードでログインする。
+`http://localhost:4200` を開くと、マスターユーザーで自動ログインしてそのまま稟議一覧が表示される。
 
 ### 環境変数（バックエンド）
 

@@ -4,7 +4,6 @@ import {
   User as FirebaseUser,
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  signOut,
 } from 'firebase/auth';
 import { firstValueFrom } from 'rxjs';
 
@@ -15,60 +14,61 @@ import { AppUser } from './models';
 /**
  * 認証状態の管理。
  *
- * ユーザーが入力するのは社員IDとパスワードのみであり、社員IDは
- * `{社員ID}@{authEmailDomain}` へ変換したうえで Firebase Auth に渡す（基本設計書 3.4節）。
+ * 本システムは当面スタンドアロンのテストシステムとして運用し、認証・権限は
+ * 統合先システムから受け取る想定である。そのためログイン画面は設けず、
+ * 起動時に role=master のマスターユーザーで自動ログインする。
  *
- * 権限ロールはクライアントで判断せず、必ず Go バックエンドAPI の /api/v1/me から取得する。
+ * Firebase Auth と JWT 検証の仕組みはそのまま残しているため、統合時は
+ * ここでの自動ログインを実際の認証へ差し替えるだけでよい。
+ *
+ * 権限ロールはクライアントで判断せず、必ず Go バックエンドAPI の
+ * /api/v1/me から取得する。
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly auth = inject(FIREBASE_AUTH);
   private readonly http = inject(HttpClient);
 
-  /** ログイン中のユーザー情報（氏名・社員ID・ロール）。未ログイン時は null。 */
+  /** ログイン中のユーザー情報（氏名・社員ID・ロール）。未確立時は null。 */
   readonly appUser = signal<AppUser | null>(null);
 
-  /** Firebase の認証状態の初期解決が完了したか。 */
+  /** 自動ログインの試行が完了したか（成否は問わない）。 */
   readonly ready = signal(false);
 
-  private readyPromise: Promise<void>;
+  /** 自動ログインに失敗した場合のメッセージ。 */
+  readonly error = signal<string | null>(null);
 
-  constructor() {
-    this.readyPromise = new Promise<void>((resolve) => {
-      onAuthStateChanged(this.auth, async (user: FirebaseUser | null) => {
-        if (user) {
-          try {
-            this.appUser.set(await this.fetchMe());
-          } catch {
-            // users ドキュメント未整備などで自身の情報を取得できない場合は
-            // ログイン状態として扱わず、サインアウトさせる。
-            await signOut(this.auth);
-            this.appUser.set(null);
-          }
-        } else {
-          this.appUser.set(null);
-        }
-        this.ready.set(true);
-        resolve();
-      });
-    });
-  }
+  private readonly readyPromise = this.bootstrap();
 
-  /** 認証状態の初期解決を待つ。ルートガードから使用する。 */
+  /** 自動ログインの完了を待つ。 */
   whenReady(): Promise<void> {
     return this.readyPromise;
   }
 
-  /** 社員IDとパスワードでログインする。 */
-  async login(employeeId: string, password: string): Promise<void> {
-    const email = toAuthEmail(employeeId);
-    await signInWithEmailAndPassword(this.auth, email, password);
-    this.appUser.set(await this.fetchMe());
+  private async bootstrap(): Promise<void> {
+    try {
+      // 既存のセッションがあれば再利用し、なければマスターで自動ログインする。
+      if (!(await this.restoreSession())) {
+        const { employeeId, password } = environment.masterUser;
+        await signInWithEmailAndPassword(this.auth, toAuthEmail(employeeId), password);
+      }
+      this.appUser.set(await this.fetchMe());
+    } catch (err) {
+      this.error.set(bootstrapErrorMessage(err));
+      this.appUser.set(null);
+    } finally {
+      this.ready.set(true);
+    }
   }
 
-  async logout(): Promise<void> {
-    await signOut(this.auth);
-    this.appUser.set(null);
+  /** Firebase が保持している既存セッションの有無を解決する。 */
+  private restoreSession(): Promise<FirebaseUser | null> {
+    return new Promise((resolve) => {
+      const unsubscribe = onAuthStateChanged(this.auth, (user) => {
+        unsubscribe();
+        resolve(user);
+      });
+    });
   }
 
   private fetchMe(): Promise<AppUser> {
@@ -81,23 +81,19 @@ export function toAuthEmail(employeeId: string): string {
   return `${employeeId.trim()}@${environment.authEmailDomain}`;
 }
 
-/** Firebase Auth のエラーコードを日本語メッセージへ変換する。 */
-export function authErrorMessage(error: unknown): string {
+/** 自動ログイン失敗時のエラーメッセージを組み立てる。 */
+export function bootstrapErrorMessage(error: unknown): string {
   const code = (error as { code?: string })?.code ?? '';
   switch (code) {
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
-      return '社員IDまたはパスワードが正しくありません。';
-    case 'auth/invalid-email':
-      return '社員IDの形式が正しくありません。';
-    case 'auth/user-disabled':
-      return 'このアカウントは無効化されています。管理者にお問い合わせください。';
-    case 'auth/too-many-requests':
-      return '試行回数が上限に達しました。しばらく時間をおいて再度お試しください。';
+      return 'マスターユーザーでログインできませんでした。アカウントが発行されているか確認してください。';
     case 'auth/network-request-failed':
       return 'ネットワークに接続できません。通信状況をご確認ください。';
+    case 'auth/too-many-requests':
+      return '試行回数が上限に達しました。しばらく時間をおいて再度お試しください。';
     default:
-      return 'ログインに失敗しました。時間をおいて再度お試しください。';
+      return 'システムの初期化に失敗しました。バックエンドAPIが起動しているか確認してください。';
   }
 }

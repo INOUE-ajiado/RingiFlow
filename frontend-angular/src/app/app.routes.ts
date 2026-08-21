@@ -1,16 +1,11 @@
 import { Routes } from '@angular/router';
 
-import { authGuard, guestGuard } from './core/auth.guard';
-
+// ログイン画面は設けていない（起動時にマスターユーザーで自動ログインするため）。
+// 認証の確立待ちと失敗表示はアプリシェル（App）が担当するので、ここにガードは置かない。
+// 統合時に実際の認証を導入する際は、ここへ CanActivateFn を追加する。
 export const routes: Routes = [
   {
-    path: 'login',
-    canActivate: [guestGuard],
-    loadComponent: () => import('./features/auth-login').then((m) => m.AuthLoginComponent),
-  },
-  {
     path: 'ringi',
-    canActivate: [authGuard],
     children: [
       {
         path: '',

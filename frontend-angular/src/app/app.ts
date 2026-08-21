@@ -1,10 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { RouterLink, RouterOutlet } from '@angular/router';
 
 import { AuthService } from './core/auth.service';
 import { ROLE_LABELS } from './core/models';
 
-/** アプリケーションシェル。ログイン中はヘッダーを表示する。 */
+/**
+ * アプリケーションシェル。
+ *
+ * ログイン画面を設けていないため、起動時の自動ログインが完了するまでの待機表示と、
+ * 失敗時のエラー表示をここで担当する。
+ */
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -14,18 +19,17 @@ import { ROLE_LABELS } from './core/models';
 })
 export class App {
   private readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
 
   readonly user = this.auth.appUser;
   readonly ready = this.auth.ready;
+  readonly error = this.auth.error;
 
   readonly roleLabel = computed(() => {
     const user = this.user();
     return user ? ROLE_LABELS[user.role] : '';
   });
 
-  async logout(): Promise<void> {
-    await this.auth.logout();
-    await this.router.navigate(['/login']);
+  reload(): void {
+    location.reload();
   }
 }
