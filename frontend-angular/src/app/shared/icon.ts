@@ -10,6 +10,7 @@ export type IconName =
   | 'paperclip'
   | 'trash'
   | 'chevron-right'
+  | 'print'
   | 'check'
   | 'circle'
   | 'dot';
@@ -71,6 +72,11 @@ export type IconName =
         }
         @case ('chevron-right') {
           <polyline points="9 6 15 12 9 18" />
+        }
+        @case ('print') {
+          <polyline points="6 9 6 3 18 3 18 9" />
+          <path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" />
+          <rect x="6" y="14" width="12" height="7" rx="1" />
         }
         @case ('check') {
           <polyline points="20 6 9 17 4 12" />

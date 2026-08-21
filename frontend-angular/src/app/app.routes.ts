@@ -22,6 +22,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/ringi-detail').then((m) => m.RingiDetailComponent),
       },
       {
+        // 決裁書の印刷ビュー（A4）
+        path: ':id/print',
+        loadComponent: () => import('./features/ringi-print').then((m) => m.RingiPrintComponent),
+      },
+      {
         // 差し戻された稟議の修正・再申請
         path: ':id/edit',
         loadComponent: () => import('./features/ringi-create').then((m) => m.RingiCreateComponent),

@@ -631,6 +631,11 @@ E1234  →  E1234@ringiflow.ajiado.co.jp</code></pre>
                     <td>社員氏名。</td>
                 </tr>
                 <tr>
+                    <td><code>department</code></td>
+                    <td>String</td>
+                    <td>所属部門。稟議書の「所属」欄に表示する。</td>
+                </tr>
+                <tr>
                     <td><code>role</code></td>
                     <td>String</td>
                     <td>権限ロール（<code>applicant</code>, <code>system_admin</code>, <code>producer</code>,
@@ -695,6 +700,22 @@ E1234  →  E1234@ringiflow.ajiado.co.jp</code></pre>
                     <td><code>status</code></td>
                     <td>String</td>
                     <td>現在の状態（<code>pending_system</code>, ... <code>approved</code> 等）。</td>
+                </tr>
+                <tr>
+                    <td><code>department</code></td>
+                    <td>String</td>
+                    <td>申請時点の申請者の所属部門。異動後も当時の記録が残るよう、参照ではなく値をコピーして保持する。</td>
+                </tr>
+                <tr>
+                    <td><code>dueDate</code></td>
+                    <td>Timestamp</td>
+                    <td>決裁希望日（任意）。日付のみを扱い、日本時間のその日として保持する。</td>
+                </tr>
+                <tr>
+                    <td><code>summary</code></td>
+                    <td>Array</td>
+                    <td>「概要」欄の項目。各要素は <code>label</code> と <code>value</code>
+                        を持つ。稟議の種類ごとに必要な項目が変わるため固定のフィールドを持たない（1稟議10項目、項目名20文字、内容200文字が上限）。</td>
                 </tr>
                 <tr>
                     <td><code>attachments</code></td>
@@ -1013,6 +1034,11 @@ DELETE /api/v1/ringi/{id}/attachments/{attachmentId}  # 削除
                     <td>稟議の詳細内容および承認履歴（タイムライン）を表示。3.3節の状態遷移表に従い、現在のステータスとログインユーザーのロールに応じて「承認」「差し戻し」「却下」「再申請」ボタンを動的に表示する。</td>
                 </tr>
                 <tr>
+                    <td><code>RingiPrintComponent</code></td>
+                    <td>決裁書の印刷用ビュー（A4）。証跡として保管・回覧できる体裁で、押印欄・概要・決裁経過を1枚にまとめる。ブラウザの印刷機能でPDF化できるよう、外部ライブラリを使わず
+                        <code>&#64;page</code> と印刷用スタイルのみで組む。</td>
+                </tr>
+                <tr>
                     <td><code>ActionDialogComponent</code></td>
                     <td>承認や却下ボタンを押した際に表示される、コメント入力用モーダル。</td>
                 </tr>
@@ -1083,6 +1109,11 @@ DELETE /api/v1/ringi/{id}/attachments/{attachmentId}  # 削除
                         を追加（5.1節）。クライアントのFirebase SDK利用がAuthenticationに限定されるため、AngularFireを導入せず公式
                         <code>firebase</code> パッケージを直接利用する方針へ変更（6.2節）。
                     </td>
+                </tr>
+                <tr>
+                    <td>1.7</td>
+                    <td>2026-08-22</td>
+                    <td>稟議書としての入力項目を追加（4.1節）。所属部門・決裁希望日・概要（可変項目）を新設。詳細画面を稟議書のレイアウトへ変更し、決裁書の印刷用ビューを追加（6.1節）。</td>
                 </tr>
                 <tr>
                     <td>1.6</td>

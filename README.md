@@ -81,6 +81,8 @@
 - 金額による承認ルートの分岐
 - 監査ログ（申請・承認・差し戻し・却下・再申請・取り下げ・添付・削除）
 - 再申請時の変更差分を履歴に記録（何を直したかを承認者が追える）
+- 稟議書としての入力項目（所属部門・決裁希望日・概要の可変項目）
+- 決裁書の印刷/PDF出力（A4・押印欄・決裁経過）
 
 ### データアクセス方針
 
@@ -187,6 +189,7 @@ go run ./cmd/useradmin create -employee E0004 -name "代表 三郎"   -role ceo
 ```bash
 go run ./cmd/useradmin list                                  # 一覧
 go run ./cmd/useradmin setrole -employee E0001 -role producer # ロール変更
+go run ./cmd/useradmin setdept -employee E0001 -department 企画事業部 # 所属変更
 go run ./cmd/useradmin passwd  -employee E0001                # パスワード再発行
 ```
 

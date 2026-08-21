@@ -47,10 +47,18 @@ interface Stamp {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, DatePipe, CurrencyPipe, StatusBadge, ActionDialog, Icon],
   template: `
-    <a routerLink="/ringi" class="back">
-      <app-icon name="arrow-left" [size]="16" />
-      一覧へ戻る
-    </a>
+    <div class="page-nav">
+      <a routerLink="/ringi" class="back">
+        <app-icon name="arrow-left" [size]="16" />
+        一覧へ戻る
+      </a>
+      @if (request(); as req) {
+        <a [routerLink]="['/ringi', req.id, 'print']" class="btn btn-secondary btn-sm">
+          <app-icon name="print" [size]="14" />
+          印刷 / PDF
+        </a>
+      }
+    </div>
 
     @if (loading()) {
       <div class="empty-state loading">
@@ -294,11 +302,18 @@ interface Stamp {
     }
   `,
   styles: `
+    .page-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+    }
+
     .back {
       display: inline-flex;
       align-items: center;
       gap: var(--space-2);
-      margin-bottom: var(--space-4);
       font-size: var(--text-sm);
       font-weight: 600;
       color: var(--text-muted);
