@@ -158,3 +158,13 @@ func IsValidRole(role string) bool {
 func IsMaster(role string) bool {
 	return role == RoleMaster
 }
+
+// IsValidStatus は status が定義済みのステータスかを判定する。
+func IsValidStatus(status string) bool {
+	switch status {
+	case StatusPendingSystem, StatusPendingProducer, StatusPendingCEO,
+		StatusApproved, StatusRejected, StatusReturned, StatusWithdrawn:
+		return true
+	}
+	return false
+}

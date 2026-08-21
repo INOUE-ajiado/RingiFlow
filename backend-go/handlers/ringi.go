@@ -74,22 +74,21 @@ func (h *RingiHandler) list(w http.ResponseWriter, r *http.Request) {
 		writeError(w, nil)
 		return
 	}
-	scope := services.ScopeAll
-	switch r.URL.Query().Get("scope") {
-	case string(services.ScopeMine):
-		scope = services.ScopeMine
-	case string(services.ScopeInbox):
-		scope = services.ScopeInbox
+	query, appErr := parseListQuery(r.URL.Query())
+	if appErr != nil {
+		writeError(w, appErr)
+		return
 	}
-	result, err := h.svc.List(r.Context(), user, scope)
+	result, err := h.svc.List(r.Context(), user, query)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"success":   true,
-		"items":     result.Items,
-		"truncated": result.Truncated,
+		"success":    true,
+		"items":      result.Items,
+		"nextCursor": result.NextCursor,
+		"truncated":  result.Truncated,
 	})
 }
 
