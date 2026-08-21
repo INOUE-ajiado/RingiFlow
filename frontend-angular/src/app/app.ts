@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
 
+import { Icon } from './shared/icon';
+
 import { AuthService } from './core/auth.service';
 import { ROLE_LABELS } from './core/models';
 
@@ -13,7 +15,7 @@ import { ROLE_LABELS } from './core/models';
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink],
+  imports: [RouterOutlet, RouterLink, Icon],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

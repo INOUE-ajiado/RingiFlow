@@ -19,6 +19,7 @@ import {
 } from '../core/models';
 import { RingiService, apiErrorMessage } from '../core/ringi.service';
 import { ActionDialog } from '../shared/action-dialog';
+import { Icon } from '../shared/icon';
 import { StatusBadge } from '../shared/status-badge';
 
 /**
@@ -29,12 +30,18 @@ import { StatusBadge } from '../shared/status-badge';
 @Component({
   selector: 'app-ringi-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DatePipe, CurrencyPipe, StatusBadge, ActionDialog],
+  imports: [RouterLink, DatePipe, CurrencyPipe, StatusBadge, ActionDialog, Icon],
   template: `
-    <a routerLink="/ringi" class="back">← 一覧へ戻る</a>
+    <a routerLink="/ringi" class="back">
+      <app-icon name="arrow-left" [size]="16" />
+      一覧へ戻る
+    </a>
 
     @if (loading()) {
-      <div class="empty-state">読み込み中...</div>
+      <div class="empty-state loading">
+        <app-icon name="spinner" [size]="24" />
+        読み込んでいます...
+      </div>
     } @else if (loadError()) {
       <div class="card empty-state">
         <p class="error-message">{{ loadError() }}</p>
@@ -71,12 +78,21 @@ import { StatusBadge } from '../shared/status-badge';
         <section class="route">
           <h2>承認ルート</h2>
           <ol class="steps">
-            @for (step of route(); track step.status) {
+            @for (step of route(); track step.status; let first = $first) {
+              @if (!first) {
+                <li class="sep" aria-hidden="true"><app-icon name="chevron-right" [size]="14" /></li>
+              }
               <li [class.done]="stepDone(step.status)" [class.current]="req.status === step.status">
                 {{ step.label }}
               </li>
             }
-            <li class="final" [class.done]="req.status === 'approved'">決裁完了</li>
+            <li class="sep" aria-hidden="true"><app-icon name="chevron-right" [size]="14" /></li>
+            <li class="final" [class.done]="req.status === 'approved'">
+              @if (req.status === 'approved') {
+                <app-icon name="check" [size]="14" />
+              }
+              決裁完了
+            </li>
           </ol>
           @if (routeNote()) {
             <p class="route-note">{{ routeNote() }}</p>
@@ -90,7 +106,7 @@ import { StatusBadge } from '../shared/status-badge';
 
         <section class="attachments">
           <div class="section-head">
-            <h2>添付ファイル</h2>
+            <h2><app-icon name="paperclip" [size]="14" />添付ファイル</h2>
             @if (canEditAttachments()) {
               <label class="btn btn-secondary upload">
                 {{ uploading() ? 'アップロード中...' : 'ファイルを追加' }}
@@ -122,8 +138,13 @@ import { StatusBadge } from '../shared/status-badge';
                     {{ file.uploadedAt | date: 'yyyy/MM/dd HH:mm' }}
                   </span>
                   @if (canEditAttachments()) {
-                    <button type="button" class="file-remove" (click)="removeAttachment(file)">
-                      削除
+                    <button
+                      type="button"
+                      class="icon-btn icon-btn-danger file-remove"
+                      [attr.aria-label]="file.fileName + ' を削除'"
+                      (click)="removeAttachment(file)"
+                    >
+                      <app-icon name="trash" [size]="16" />
                     </button>
                   }
                 </li>
@@ -155,8 +176,9 @@ import { StatusBadge } from '../shared/status-badge';
           <p class="empty">履歴はまだありません。</p>
         } @else {
           <ol class="timeline">
-            @for (log of history(); track $index) {
+            @for (log of history(); track $index; let first = $first) {
               <li>
+                <app-icon class="pip" [name]="first ? 'dot' : 'circle'" [size]="12" />
                 <div class="line">
                   <span class="action">{{ label(log.action) }}</span>
                   <span class="actor">{{ log.actorName }}</span>
@@ -194,6 +216,18 @@ import { StatusBadge } from '../shared/status-badge';
       text-decoration: none;
 
       &:hover {
+        color: var(--accent);
+      }
+    }
+
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-3);
+      color: var(--text-muted);
+
+      app-icon {
         color: var(--accent);
       }
     }
@@ -262,6 +296,9 @@ import { StatusBadge } from '../shared/status-badge';
     .history h2,
     .attachments h2,
     .route h2 {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
       font-size: var(--text-sm);
       font-weight: 700;
       letter-spacing: 0.02em;
@@ -297,13 +334,12 @@ import { StatusBadge } from '../shared/status-badge';
       color: var(--text-muted);
     }
 
-    .steps li + li::before {
-      content: '';
-      width: 0.9rem;
-      height: 1px;
-      background: var(--border);
-      margin-left: -0.75rem;
-      margin-right: 0.15rem;
+    /* ステップ間の区切り。枠を持たない矢印だけの項目 */
+    .steps li.sep {
+      padding: 0;
+      border: none;
+      background: none;
+      color: var(--text-faint);
     }
 
     .steps li.done {
@@ -409,23 +445,6 @@ import { StatusBadge } from '../shared/status-badge';
 
     .file-remove {
       margin-left: auto;
-      background: none;
-      border: none;
-      padding: 0.2rem 0.5rem;
-      border-radius: var(--radius-sm);
-      font-family: inherit;
-      font-size: var(--text-xs);
-      font-weight: 600;
-      color: var(--text-muted);
-      cursor: pointer;
-      transition:
-        background-color var(--duration) var(--ease),
-        color var(--duration) var(--ease);
-
-      &:hover {
-        background: var(--danger-50);
-        color: var(--danger-700);
-      }
     }
 
     .empty {
@@ -465,22 +484,20 @@ import { StatusBadge } from '../shared/status-badge';
         padding-bottom: 0;
       }
 
-      &::before {
-        content: '';
-        position: absolute;
-        left: calc(var(--space-5) * -1 - 5px);
-        top: 0.45rem;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: var(--bg-surface);
-        border: 2px solid var(--border);
-      }
+    }
 
-      &:first-child::before {
-        border-color: var(--accent);
-        background: var(--accent);
-      }
+    /* 履歴の点。最新だけ塗りつぶし、それ以外は枠のみ */
+    .pip {
+      position: absolute;
+      left: calc(var(--space-5) * -1 - 7px);
+      top: 0.35rem;
+      color: var(--border);
+      background: var(--bg-surface);
+      border-radius: 50%;
+    }
+
+    .timeline li:first-child .pip {
+      color: var(--accent);
     }
 
     .line {

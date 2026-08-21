@@ -2,7 +2,7 @@
   <header class="app-header">
     <div class="inner">
       <a routerLink="/ringi" class="brand">
-        <span class="brand-mark" aria-hidden="true">R</span>
+        <span class="brand-mark" aria-hidden="true"><app-icon name="brand" [size]="18" /></span>
         <span class="brand-name">RingiFlow</span>
       </a>
       <div class="user">
@@ -16,7 +16,7 @@
 <main [class.with-header]="!!user()">
   @if (!ready()) {
     <div class="booting">
-      <div class="spinner" aria-hidden="true"></div>
+      <app-icon name="spinner" [size]="30" />
       <p>読み込んでいます...</p>
     </div>
   } @else if (error()) {

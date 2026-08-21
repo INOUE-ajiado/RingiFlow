@@ -6,6 +6,7 @@ import { Router, RouterLink } from '@angular/router';
 import { RingiRequest, requiresCEOApproval } from '../core/models';
 import { AuthService } from '../core/auth.service';
 import { RingiService, apiErrorMessage } from '../core/ringi.service';
+import { Icon } from '../shared/icon';
 
 /**
  * 新規申請の入力フォーム。
@@ -15,7 +16,7 @@ import { RingiService, apiErrorMessage } from '../core/ringi.service';
 @Component({
   selector: 'app-ringi-create',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, Icon],
   template: `
     <div class="page-head">
       <h1>{{ isResubmit() ? '稟議の修正・再申請' : '新規稟議申請' }}</h1>
@@ -29,7 +30,10 @@ import { RingiService, apiErrorMessage } from '../core/ringi.service';
     }
 
     @if (loading()) {
-      <div class="empty-state">読み込み中...</div>
+      <div class="empty-state loading">
+        <app-icon name="spinner" [size]="24" />
+        読み込んでいます...
+      </div>
     } @else {
       <form [formGroup]="form" (ngSubmit)="submit()" class="card panel">
         <div class="field">
@@ -106,6 +110,17 @@ import { RingiService, apiErrorMessage } from '../core/ringi.service';
 
     .resubmit-notice {
       margin-bottom: var(--space-4);
+    }
+
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-3);
+
+      app-icon {
+        color: var(--accent);
+      }
     }
 
     .panel {

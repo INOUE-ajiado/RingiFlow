@@ -476,3 +476,69 @@ textarea {
     background-position: 0 50%;
   }
 }
+
+/* ==========================================================================
+   アイコン（テーマ: モダン）
+
+   形は app-icon が持ち、見た目はここで一括して決める。
+   色は currentColor を継承するため、置いた場所の文字色に馴染む。
+   ========================================================================== */
+.icon {
+  --icon-size: 18px;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  display: block;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: color var(--duration) var(--ease);
+}
+
+/* 状態点だけは塗りつぶし */
+.icon--dot {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* 読み込み中スピナー。3/4円弧を回す */
+.icon--spin {
+  animation: icon-spin 900ms linear infinite;
+  transform-origin: 50% 50%;
+}
+
+@keyframes icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* アイコンだけを置く操作ボタン。モダンテーマのホバーに合わせる */
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+
+  &:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+}
+
+/* 削除など取り消し系のアイコンボタン */
+.icon-btn-danger:hover {
+  background: var(--danger-50);
+  color: var(--danger-600);
+}

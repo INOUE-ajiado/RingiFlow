@@ -6,6 +6,7 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth.service';
 import { RingiRequest, RingiStatus, STATUS_LABELS, hasApprovalRole } from '../core/models';
 import { ListQuery, ListScope, RingiService, apiErrorMessage } from '../core/ringi.service';
+import { Icon } from '../shared/icon';
 import { StatusBadge } from '../shared/status-badge';
 
 const PAGE_SIZE = 50;
@@ -30,7 +31,7 @@ const FILTERABLE_STATUSES: RingiStatus[] = [
 @Component({
   selector: 'app-ringi-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, FormsModule, DatePipe, CurrencyPipe, StatusBadge],
+  imports: [RouterLink, FormsModule, DatePipe, CurrencyPipe, StatusBadge, Icon],
   template: `
     <div class="page-head">
       <div>
@@ -38,7 +39,7 @@ const FILTERABLE_STATUSES: RingiStatus[] = [
         <p class="subtitle">{{ subtitle() }}</p>
       </div>
       <a routerLink="/ringi/new" class="btn btn-primary">
-        <span class="plus" aria-hidden="true">＋</span>
+        <app-icon name="plus" [size]="16" />
         新規申請
       </a>
     </div>
@@ -62,13 +63,16 @@ const FILTERABLE_STATUSES: RingiStatus[] = [
       <div class="filter-grid">
         <div class="field keyword">
           <label for="keyword">キーワード</label>
-          <input
-            id="keyword"
-            type="search"
-            [(ngModel)]="keyword"
-            (keyup.enter)="search()"
-            placeholder="稟議番号・タイトル・内容・申請者"
-          />
+          <div class="input-icon">
+            <app-icon name="search" [size]="16" />
+            <input
+              id="keyword"
+              type="search"
+              [(ngModel)]="keyword"
+              (keyup.enter)="search()"
+              placeholder="稟議番号・タイトル・内容・申請者"
+            />
+          </div>
         </div>
         <div class="field">
           <label for="from">申請日（開始）</label>
@@ -218,9 +222,26 @@ const FILTERABLE_STATUSES: RingiStatus[] = [
       font-size: var(--text-sm);
     }
 
-    .plus {
-      font-size: 1em;
-      line-height: 1;
+    /* 入力欄の内側に置くアイコン */
+    .input-icon {
+      position: relative;
+
+      app-icon {
+        position: absolute;
+        left: 0.7rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-faint);
+        pointer-events: none;
+      }
+
+      input {
+        padding-left: 2.1rem;
+      }
+
+      &:focus-within app-icon {
+        color: var(--accent);
+      }
     }
 
     /* --- タブ --- */
