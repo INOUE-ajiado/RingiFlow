@@ -395,7 +395,6 @@ const FILTERABLE_STATUSES: RingiStatus[] = [
 
       &:hover {
         color: var(--accent);
-        text-decoration: underline;
       }
     }
 

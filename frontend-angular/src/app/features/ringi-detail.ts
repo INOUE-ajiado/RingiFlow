@@ -658,7 +658,7 @@ interface Stamp {
       text-align: left;
 
       &:hover {
-        text-decoration: underline;
+        color: var(--accent-hover);
       }
     }
 
